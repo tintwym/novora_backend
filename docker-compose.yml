@@ -1,0 +1,26 @@
+# Local API on :8081 against PostgreSQL (credentials from .env — do not commit).
+# Usage:
+#   docker compose up --build
+# API: http://127.0.0.1:8081  (Android emulator: http://10.0.2.2:8081)
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: novora-backend
+    ports:
+      - "8081:8081"
+    env_file:
+      - .env
+    environment:
+      SERVER_PORT: "8081"
+      # Plain HTTP for local Vite / mobile — Secure cookies would be dropped.
+      SERVER_SERVLET_SESSION_COOKIE_SECURE: "false"
+      JAVA_OPTS: "-Xms128m -Xmx512m"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8081/actuator/health/liveness"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 120s
+    restart: unless-stopped

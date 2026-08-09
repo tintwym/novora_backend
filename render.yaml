@@ -1,0 +1,27 @@
+# Optional Render Blueprint (Docker). Prefer any host that runs the Dockerfile.
+services:
+  - type: web
+    name: novora-backend
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    # Use liveness (JVM up) — not full /actuator/health (includes DB).
+    healthCheckPath: /actuator/health/liveness
+    envVars:
+      - key: DB_URL
+        sync: false
+      - key: DB_USERNAME
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_POOL_SIZE
+        value: "5"
+      - key: JPA_DDL_AUTO
+        value: none
+      - key: APP_OTP_EXPOSE_CODE
+        value: "false"
+      # Exact CORS origins only (no wildcards with credentials).
+      - key: APP_CORS_ADDITIONAL_ORIGIN_PATTERNS
+        value: https://novora-hrms.vercel.app
