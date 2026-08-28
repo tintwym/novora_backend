@@ -9,7 +9,7 @@ import java.nio.file.Path;
  * Env vars already set in the process always win. File is optional.
  *
  * <p>Search order (first existing file wins): {@code ENV_FILE}, then {@code ./.env},
- * {@code ./novora_backend/.env}, {@code ./backend/.env}.
+ * {@code ./backend/.env}, {@code ./novora_backend/.env} (legacy).
  */
 public final class EnvFileLoader {
 
@@ -22,8 +22,8 @@ public final class EnvFileLoader {
                         ? new Path[] {Path.of(custom)}
                         : new Path[] {
                             Path.of(System.getProperty("user.dir"), ".env"),
-                            Path.of(System.getProperty("user.dir"), "novora_backend", ".env"),
-                            Path.of(System.getProperty("user.dir"), "backend", ".env")
+                            Path.of(System.getProperty("user.dir"), "backend", ".env"),
+                            Path.of(System.getProperty("user.dir"), "novora_backend", ".env")
                         };
         for (Path p : candidates) {
             if (!Files.isRegularFile(p)) {

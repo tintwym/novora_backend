@@ -11,7 +11,7 @@ Spring Boot API for Novora HRMS — auth, tenancy, HR data, and business rules.
 **Preferred — Docker + managed Postgres** (credentials in `.env`):
 
 ```bash
-cd novora_backend
+cd backend
 cp .env.example .env   # set DB_URL, DB_USERNAME, DB_PASSWORD
 docker compose up --build
 # API: http://127.0.0.1:8081

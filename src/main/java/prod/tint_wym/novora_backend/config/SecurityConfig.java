@@ -37,7 +37,7 @@ import prod.tint_wym.novora_backend.tenancy.TrialExpiryFilter;
 public class SecurityConfig {
 
     /**
-     * CORS for the React admin SPA (Vercel) and local Vite dev (different port = cross-origin).
+     * CORS for the React admin SPA (Vercel) and local Next.js dev (different port = cross-origin).
      * Loopback patterns are open for dev. Production origins MUST be configured via
      * {@code APP_CORS_ADDITIONAL_ORIGIN_PATTERNS} as EXACT origins (no wildcards) —
      * any wildcard combined with {@code allowCredentials=true} below is a CSRF bypass.
