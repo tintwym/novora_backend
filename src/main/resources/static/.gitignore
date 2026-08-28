@@ -1,1 +1,2 @@
 # Built frontend output (optional copy into static/ for local JAR deploy). Do not commit bundles.
+# Next.js build output lives in frontend/.next — not copied here by default.

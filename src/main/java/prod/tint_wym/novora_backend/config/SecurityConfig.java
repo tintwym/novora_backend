@@ -234,7 +234,7 @@ public class SecurityConfig {
             String method = request.getMethod();
             if (!"GET".equalsIgnoreCase(method) && !"HEAD".equalsIgnoreCase(method)) return false;
 
-            // Static assets (Vite build: /assets/, favicons, etc.).
+            // Static assets (/assets/, favicons, etc.) when a frontend bundle is copied into classpath:/static/.
             if (uri.startsWith("/assets/")) return true;
             if (uri.equals("/") || uri.equals("/index.html")) return true;
 

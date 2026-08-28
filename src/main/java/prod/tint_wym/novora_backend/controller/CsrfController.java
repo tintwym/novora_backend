@@ -15,7 +15,7 @@ public class CsrfController {
      * for the client to bootstrap from the response; the browser also receives {@code XSRF-TOKEN}
      * as a readable cookie ({@link
      * org.springframework.security.web.csrf.CookieCsrfTokenRepository#withHttpOnlyFalse()}), which
-     * the Vite client reads via {@code document.cookie} when present.
+     * the web client reads via {@code document.cookie} when present.
      *
      * <p>Safe with credentials only when CORS is locked to exact production origins (see {@code
      * application.properties}).

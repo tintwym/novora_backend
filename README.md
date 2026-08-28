@@ -17,7 +17,7 @@ docker compose up --build
 # API: http://127.0.0.1:8081
 ```
 
-`docker-compose` sets `SERVER_PORT=8081` and `SERVER_SERVLET_SESSION_COOKIE_SECURE=false` so Vite and mobile can use cookie sessions over plain HTTP.
+`docker-compose` sets `SERVER_PORT=8081` and `SERVER_SERVLET_SESSION_COOKIE_SECURE=false` so the Next.js dev proxy and mobile clients can use cookie sessions over plain HTTP.
 
 **Demo without Postgres** (in-memory H2):
 

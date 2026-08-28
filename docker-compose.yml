@@ -14,7 +14,7 @@ services:
       - .env
     environment:
       SERVER_PORT: "8081"
-      # Plain HTTP for local Vite / mobile — Secure cookies would be dropped.
+      # Plain HTTP for local Next.js / mobile — Secure cookies would be dropped.
       SERVER_SERVLET_SESSION_COOKIE_SECURE: "false"
       JAVA_OPTS: "-Xms128m -Xmx512m"
     healthcheck:
