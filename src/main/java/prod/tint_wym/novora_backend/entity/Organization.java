@@ -50,6 +50,27 @@ public class Organization {
     @Column(nullable = false, unique = true, length = 80)
     private String slug;
 
+    @Column(name = "legal_name", length = 200)
+    private String legalName;
+
+    @Column(name = "registration_no", length = 80)
+    private String registrationNo;
+
+    @Column(name = "address_line1", columnDefinition = "text")
+    private String addressLine1;
+
+    @Column(length = 100)
+    private String city;
+
+    @Column(length = 100)
+    private String country;
+
+    @Column(length = 40)
+    private String phone;
+
+    @Column(length = 255)
+    private String website;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private Plan plan = Plan.TRIAL;
@@ -106,6 +127,20 @@ public class Organization {
     public void setName(String name) { this.name = name; }
     public String getSlug() { return slug; }
     public void setSlug(String slug) { this.slug = slug; }
+    public String getLegalName() { return legalName; }
+    public void setLegalName(String legalName) { this.legalName = legalName; }
+    public String getRegistrationNo() { return registrationNo; }
+    public void setRegistrationNo(String registrationNo) { this.registrationNo = registrationNo; }
+    public String getAddressLine1() { return addressLine1; }
+    public void setAddressLine1(String addressLine1) { this.addressLine1 = addressLine1; }
+    public String getCity() { return city; }
+    public void setCity(String city) { this.city = city; }
+    public String getCountry() { return country; }
+    public void setCountry(String country) { this.country = country; }
+    public String getPhone() { return phone; }
+    public void setPhone(String phone) { this.phone = phone; }
+    public String getWebsite() { return website; }
+    public void setWebsite(String website) { this.website = website; }
     public Plan getPlan() { return plan; }
     public void setPlan(Plan plan) { this.plan = plan; }
     public Status getStatus() { return status; }

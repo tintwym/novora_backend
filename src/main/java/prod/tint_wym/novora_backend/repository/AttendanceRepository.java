@@ -10,5 +10,7 @@ import prod.tint_wym.novora_backend.entity.Attendance;
 public interface AttendanceRepository extends JpaRepository<Attendance, UUID> {
     List<Attendance> findAllByEmployee_IdOrderByWorkDateDesc(UUID employeeId);
 
+    List<Attendance> findAllByOrderByWorkDateDesc();
+
     Optional<Attendance> findByEmployee_IdAndWorkDate(UUID employeeId, LocalDate workDate);
 }

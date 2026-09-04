@@ -168,6 +168,92 @@ public class AdminUserService {
         return new AdminDtos.ActivateUserResponse(saved.getId(), saved.getEmail(), saved.isActive());
     }
 
+    @Transactional
+    public AdminDtos.UserSummary inviteUser(AdminDtos.InviteUserRequest request, String callerEmail) {
+        UUID tenant = TenantContext.get();
+        if (tenant == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated");
+        }
+        String normalizedEmail = request.email().trim().toLowerCase();
+        if (appUserRepository.findByEmail(normalizedEmail).isPresent()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Email already registered");
+        }
+
+        String roleName = "EMPLOYEE";
+        if (request.roles() != null && !request.roles().isEmpty()) {
+            List<String> normalized = request.roles().stream()
+                    .map(s -> s == null ? "" : s.trim())
+                    .filter(s -> !s.isBlank())
+                    .map(s -> s.toUpperCase())
+                    .distinct()
+                    .toList();
+            if (normalized.size() != 1) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Exactly one role is required");
+            }
+            roleName = normalized.get(0);
+            if (!ALLOWED_ROLES.contains(roleName)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown role: " + roleName);
+            }
+            String callerRole = callerEmail == null
+                    ? null
+                    : appUserRepository.findByEmail(callerEmail.trim().toLowerCase())
+                            .map(caller -> caller.getRole() == null ? "EMPLOYEE" : caller.getRole())
+                            .orElse(null);
+            if (!"SUPER_ADMIN".equals(callerRole) && "SUPER_ADMIN".equals(roleName)) {
+                throw new ResponseStatusException(
+                        HttpStatus.FORBIDDEN, "Only a SUPER_ADMIN can assign the SUPER_ADMIN role.");
+            }
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        AppUser user = new AppUser();
+        user.setEmail(normalizedEmail);
+        user.setPasswordHash(passwordEncoder.encode(request.temporaryPassword()));
+        user.setOrganizationId(tenant);
+        user.setRole(roleName);
+        // Invited with a known temp password — active so they can sign in immediately.
+        user.setActive(true);
+        user.setEmailVerified(false);
+        user.setCreatedAt(now);
+        user.setUpdatedAt(now);
+        AppUser saved = appUserRepository.save(user);
+        myProfileService.ensureEmployeeForEmail(normalizedEmail);
+        return toSummary(saved);
+    }
+
+    @Transactional
+    public AdminDtos.UserSummary deactivateUser(UUID id, String callerEmail) {
+        UUID tenant = TenantContext.get();
+        if (tenant == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated");
+        }
+        AppUser user = appUserRepository.findByIdAndOrganizationId(id, tenant)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+
+        if (callerEmail != null
+                && user.getEmail() != null
+                && callerEmail.trim().equalsIgnoreCase(user.getEmail().trim())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You cannot deactivate your own account");
+        }
+
+        if ("SUPER_ADMIN".equals(user.getRole()) && user.isActive()) {
+            long remainingSuperAdmins = appUserRepository.findAllByOrganizationId(tenant).stream()
+                    .filter(u -> !u.getId().equals(user.getId()))
+                    .filter(u -> "SUPER_ADMIN".equals(u.getRole()))
+                    .filter(u -> u.isActive())
+                    .count();
+            if (remainingSuperAdmins == 0) {
+                throw new ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "Cannot deactivate the last active SUPER_ADMIN. Promote another user first.");
+            }
+        }
+
+        user.setActive(false);
+        user.setUpdatedAt(LocalDateTime.now());
+        return toSummary(appUserRepository.save(user));
+    }
+
     public void ensureAdminUser(String email, String rawPassword) {
         String normalizedEmail = email.trim().toLowerCase();
         if (appUserRepository.findByEmail(normalizedEmail).isPresent()) {

@@ -39,6 +39,9 @@ public class HrDocument {
     @Column(name = "file_url", nullable = false, columnDefinition = "text")
     private String fileUrl;
 
+    @Column(name = "content_base64", columnDefinition = "text")
+    private String contentBase64;
+
     @Column(name = "file_size")
     private Long fileSize;
 
@@ -104,6 +107,14 @@ public class HrDocument {
 
     public void setFileUrl(String fileUrl) {
         this.fileUrl = fileUrl;
+    }
+
+    public String getContentBase64() {
+        return contentBase64;
+    }
+
+    public void setContentBase64(String contentBase64) {
+        this.contentBase64 = contentBase64;
     }
 
     public Long getFileSize() {

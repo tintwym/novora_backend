@@ -40,4 +40,10 @@ public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, UUID
             @Param("employeeId") UUID employeeId,
             @Param("startDate") java.time.LocalDate startDate,
             @Param("endDate") java.time.LocalDate endDate);
+
+    @Query("""
+            SELECT COUNT(lr) FROM LeaveRequest lr JOIN lr.employee e
+            WHERE LOWER(lr.status) = LOWER(:status) AND e.organizationId = :orgId
+            """)
+    long countByStatusAndEmployee_OrganizationId(@Param("status") String status, @Param("orgId") UUID orgId);
 }

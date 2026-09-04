@@ -9,5 +9,9 @@ import prod.tint_wym.novora_backend.entity.Position;
 public interface PositionRepository extends JpaRepository<Position, UUID> {
     Optional<Position> findFirstByDepartment_IdOrderByTitleAsc(UUID departmentId);
 
+    Optional<Position> findFirstByDepartment_IdAndTitleIgnoreCase(UUID departmentId, String title);
+
     List<Position> findByDepartment_Id(UUID departmentId);
+
+    List<Position> findAllByOrderByTitleAsc();
 }

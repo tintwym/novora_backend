@@ -34,6 +34,11 @@ public class WorkController {
         return workService.myLeave(auth.getName());
     }
 
+    @GetMapping("/api/my/leave/balances")
+    public List<WorkDtos.LeaveBalanceResponse> myLeaveBalances(Authentication auth) {
+        return workService.myLeaveBalances(auth.getName());
+    }
+
     @PostMapping("/api/my/leave")
     @ResponseStatus(HttpStatus.CREATED)
     public WorkDtos.LeaveRequestResponse createMyLeave(Authentication auth, @Valid @RequestBody WorkDtos.CreateLeaveRequest request) {
@@ -100,6 +105,11 @@ public class WorkController {
     @ResponseStatus(HttpStatus.CREATED)
     public WorkDtos.DocumentResponse addMyDocument(Authentication auth, @Valid @RequestBody WorkDtos.AddDocumentRequest request) {
         return workService.addMyDocument(auth.getName(), request);
+    }
+
+    @GetMapping("/api/my/documents/{docId}/content")
+    public WorkDtos.DocumentContentResponse myDocumentContent(Authentication auth, @PathVariable UUID docId) {
+        return workService.myDocumentContent(auth.getName(), docId);
     }
 
     @DeleteMapping("/api/my/documents/{docId}")

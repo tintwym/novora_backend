@@ -45,6 +45,18 @@ public final class WorkDtos {
     ) {
     }
 
+    public record LeaveBalanceResponse(
+            UUID id,
+            String leaveType,
+            String leaveTypeCode,
+            int balanceYear,
+            BigDecimal totalDays,
+            BigDecimal usedDays,
+            BigDecimal pendingDays,
+            BigDecimal remainingDays
+    ) {
+    }
+
     // Attendance
     public record AttendanceLogResponse(
             UUID id,
@@ -72,18 +84,18 @@ public final class WorkDtos {
             UUID id,
             UUID employeeId,
             LocalDate workDate,
-            LocalTime startTime,
-            LocalTime endTime,
-            String description,
+            BigDecimal hours,
+            String project,
+            String notes,
             Instant createdAt
     ) {
     }
 
     public record CreateTimeLogRequest(
             @NotNull LocalDate workDate,
-            LocalTime startTime,
-            LocalTime endTime,
-            @Size(max = 500) String description
+            @NotNull BigDecimal hours,
+            @Size(max = 160) String project,
+            @Size(max = 2000) String notes
     ) {
     }
 
@@ -133,7 +145,7 @@ public final class WorkDtos {
     ) {
     }
 
-    // Documents (metadata-only, URL based)
+    // Documents (metadata + optional inline base64 content)
     public record DocumentResponse(
             UUID id,
             String name,
@@ -143,19 +155,19 @@ public final class WorkDtos {
     ) {
     }
 
+    public record DocumentContentResponse(
+            String name,
+            String contentBase64,
+            String docType
+    ) {
+    }
+
     public record AddDocumentRequest(
             @NotBlank @Size(max = 200) String name,
             @Size(max = 80) String docType,
-            // Reject `javascript:`, `data:`, `file:`, etc. — these become XSS / SSRF vectors when
-            // the SPA renders the URL as <a href> or window.open(). Only https:// (or http:// on
-            // localhost for dev) is acceptable. We intentionally do not allow http:// for general
-            // URLs because a mixed-content load won't work from the production HTTPS frontend.
-            @NotBlank
-            @Size(max = 500)
-            @jakarta.validation.constraints.Pattern(
-                    regexp = "^https://[\\w.\\-]+(:\\d+)?(/[^\\s]*)?$",
-                    message = "Document URL must start with https://")
-            String url
+            // Optional when contentBase64 is provided. https:// or novora://documents/{id}.
+            @Size(max = 500) String url,
+            String contentBase64
     ) {
     }
 }

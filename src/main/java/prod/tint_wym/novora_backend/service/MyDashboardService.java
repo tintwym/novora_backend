@@ -48,10 +48,16 @@ public class MyDashboardService {
                 Long.class,
                 employeeId
         );
-        // No onboarding_task table exists in the schema (WorkService.myOnboarding returns an empty
-        // list). The previous query threw "relation does not exist" → 500 on every /my/dashboard
-        // call. Until an onboarding feature lands, hardcode 0.
-        long myOnboardingRemaining = 0L;
+        // Count remaining (non-completed) onboarding tasks for this employee.
+        long myOnboardingRemaining = jdbc.queryForObject(
+                """
+                select count(*) from onboarding_tasks
+                where employee_id = ?
+                  and lower(coalesce(status, 'pending')) <> 'completed'
+                """,
+                Long.class,
+                employeeId
+        );
         // attendance.status is also stored lowercase ('present'/'late'/'absent'/...); the original
         // 'PRESENT' comparison made every employee's attendance rate read as 0.0%.
         Double myAttendanceRate = jdbc.queryForObject(

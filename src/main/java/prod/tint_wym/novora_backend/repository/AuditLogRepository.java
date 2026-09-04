@@ -1,0 +1,11 @@
+package prod.tint_wym.novora_backend.repository;
+
+import java.util.List;
+import java.util.UUID;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import prod.tint_wym.novora_backend.entity.AuditLog;
+
+public interface AuditLogRepository extends JpaRepository<AuditLog, UUID> {
+    List<AuditLog> findAllByOrderByCreatedAtDesc(Pageable pageable);
+}

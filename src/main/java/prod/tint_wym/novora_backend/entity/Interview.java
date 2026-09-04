@@ -11,6 +11,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import org.hibernate.annotations.TenantId;
 
 @Entity
 @Table(name = "interviews")
@@ -19,6 +20,10 @@ public class Interview {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
+
+    @TenantId
+    @Column(name = "organization_id")
+    private UUID organizationId;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "candidate_id", nullable = false)
@@ -69,6 +74,14 @@ public class Interview {
 
     public void setId(UUID id) {
         this.id = id;
+    }
+
+    public UUID getOrganizationId() {
+        return organizationId;
+    }
+
+    public void setOrganizationId(UUID organizationId) {
+        this.organizationId = organizationId;
     }
 
     public Candidate getCandidate() {

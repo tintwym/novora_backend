@@ -1,5 +1,6 @@
 package prod.tint_wym.novora_backend.dto;
 
+import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Pattern;
@@ -43,10 +44,21 @@ public final class AdminDtos {
     ) {
     }
 
+    public record InviteUserRequest(
+            @NotBlank @Email @Size(max = 255) String email,
+            List<@NotBlank @Size(max = 64) String> roles,
+            @NotBlank(message = "Temporary password is required")
+            @Pattern(
+                    regexp = AuthDtos.PASSWORD_PATTERN,
+                    message =
+                            "Password must be 8–72 characters and include uppercase, lowercase, a number, and a symbol")
+            String temporaryPassword
+    ) {
+    }
+
     public record CreateRoleRequest(
             @NotBlank @Size(max = 64) String name,
             @Size(max = 255) String description
     ) {
     }
 }
-

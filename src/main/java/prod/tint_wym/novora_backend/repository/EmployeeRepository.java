@@ -15,4 +15,6 @@ public interface EmployeeRepository extends JpaRepository<Employee, UUID> {
     List<Employee> findAllByStatusNotIgnoreCase(String excludedStatus);
 
     Optional<Employee> findByIdAndOrganizationId(UUID id, UUID organizationId);
+
+    long countByStatusNotIgnoreCase(String excludedStatus);
 }

@@ -17,21 +17,29 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
+import prod.tint_wym.novora_backend.entity.Announcement;
 import prod.tint_wym.novora_backend.entity.AppUser;
 import prod.tint_wym.novora_backend.entity.Attendance;
 import prod.tint_wym.novora_backend.entity.Employee;
+import prod.tint_wym.novora_backend.entity.ExpenseClaim;
 import prod.tint_wym.novora_backend.entity.HrDocument;
 import prod.tint_wym.novora_backend.entity.LeaveBalance;
 import prod.tint_wym.novora_backend.entity.LeaveRequest;
 import prod.tint_wym.novora_backend.entity.LeaveType;
+import prod.tint_wym.novora_backend.entity.OnboardingTask;
+import prod.tint_wym.novora_backend.entity.TimeLog;
 import prod.tint_wym.novora_backend.dto.WorkDtos;
+import prod.tint_wym.novora_backend.repository.AnnouncementRepository;
 import prod.tint_wym.novora_backend.repository.AppUserRepository;
 import prod.tint_wym.novora_backend.repository.AttendanceRepository;
 import prod.tint_wym.novora_backend.repository.EmployeeRepository;
+import prod.tint_wym.novora_backend.repository.ExpenseClaimRepository;
 import prod.tint_wym.novora_backend.repository.HrDocumentRepository;
 import prod.tint_wym.novora_backend.repository.LeaveBalanceRepository;
 import prod.tint_wym.novora_backend.repository.LeaveRequestRepository;
 import prod.tint_wym.novora_backend.repository.LeaveTypeRepository;
+import prod.tint_wym.novora_backend.repository.OnboardingTaskRepository;
+import prod.tint_wym.novora_backend.repository.TimeLogRepository;
 import prod.tint_wym.novora_backend.tenancy.TenantContext;
 
 /**
@@ -64,6 +72,11 @@ public class WorkService {
     private final AttendanceRepository attendanceRepository;
     private final HrDocumentRepository hrDocumentRepository;
     private final AppUserRepository appUserRepository;
+    private final AnnouncementRepository announcementRepository;
+    private final TimeLogRepository timeLogRepository;
+    private final OnboardingTaskRepository onboardingTaskRepository;
+    private final ExpenseClaimRepository expenseClaimRepository;
+    private final NotificationService notificationService;
 
     public WorkService(
             EmployeeRepository employeeRepository,
@@ -72,7 +85,12 @@ public class WorkService {
             LeaveBalanceRepository leaveBalanceRepository,
             AttendanceRepository attendanceRepository,
             HrDocumentRepository hrDocumentRepository,
-            AppUserRepository appUserRepository
+            AppUserRepository appUserRepository,
+            AnnouncementRepository announcementRepository,
+            TimeLogRepository timeLogRepository,
+            OnboardingTaskRepository onboardingTaskRepository,
+            ExpenseClaimRepository expenseClaimRepository,
+            NotificationService notificationService
     ) {
         this.employeeRepository = employeeRepository;
         this.leaveRequestRepository = leaveRequestRepository;
@@ -81,6 +99,11 @@ public class WorkService {
         this.attendanceRepository = attendanceRepository;
         this.hrDocumentRepository = hrDocumentRepository;
         this.appUserRepository = appUserRepository;
+        this.announcementRepository = announcementRepository;
+        this.timeLogRepository = timeLogRepository;
+        this.onboardingTaskRepository = onboardingTaskRepository;
+        this.expenseClaimRepository = expenseClaimRepository;
+        this.notificationService = notificationService;
     }
 
     private static String name(Employee e) {
@@ -111,6 +134,33 @@ public class WorkService {
         Employee e = employeeForEmail(email);
         return leaveRequestRepository.findAllByEmployee_IdOrderByCreatedAtDesc(e.getId()).stream()
                 .map(lr -> toLeave(lr, e))
+                .toList();
+    }
+
+    @Transactional
+    public List<WorkDtos.LeaveBalanceResponse> myLeaveBalances(String email) {
+        Employee e = employeeForEmail(email);
+        int year = LocalDate.now(ZONE).getYear();
+        List<LeaveBalance> balances = leaveBalanceRepository.findAllByEmployee_IdAndBalanceYear(e.getId(), year);
+        if (balances.isEmpty()) {
+            // Seed on first read so existing employees created before balance seeding still work.
+            for (LeaveType leaveType : leaveTypeRepository.findAll()) {
+                if (!leaveType.isActive()) continue;
+                LeaveBalance seeded = seedBalance(e, leaveType, year);
+                balances = new java.util.ArrayList<>(balances);
+                balances.add(seeded);
+            }
+        }
+        return balances.stream()
+                .map(b -> new WorkDtos.LeaveBalanceResponse(
+                        b.getId(),
+                        b.getLeaveType().getName(),
+                        b.getLeaveType().getCode(),
+                        b.getBalanceYear(),
+                        nz(b.getTotalDays()),
+                        nz(b.getUsedDays()),
+                        nz(b.getPendingDays()),
+                        nz(b.getRemainingDays())))
                 .toList();
     }
 
@@ -216,6 +266,20 @@ public class WorkService {
         }
         lr.setUpdatedAt(now);
         LeaveRequest saved = leaveRequestRepository.save(lr);
+        try {
+            AppUser targetUser = saved.getEmployee().getAppUser();
+            if (targetUser != null) {
+                String decisionLabel = "APPROVE".equals(decision) ? "approved" : "rejected";
+                notificationService.createNotification(
+                        targetUser.getId(),
+                        "Leave request " + decisionLabel,
+                        "Your leave request from " + saved.getStartDate() + " to " + saved.getEndDate()
+                                + " was " + decisionLabel + ".",
+                        "leave");
+            }
+        } catch (Exception ignored) {
+            // best-effort
+        }
         return toLeave(saved, saved.getEmployee());
     }
 
@@ -507,33 +571,152 @@ public class WorkService {
     }
 
     public List<WorkDtos.TimeLogResponse> myTimeLogs(String email) {
-        employeeForEmail(email);
-        return List.of();
+        Employee e = employeeForEmail(email);
+        return timeLogRepository.findAllByEmployee_IdOrderByWorkDateDescCreatedAtDesc(e.getId()).stream()
+                .map(this::toTimeLog)
+                .toList();
     }
 
+    @Transactional
     public WorkDtos.TimeLogResponse createMyTimeLog(String email, WorkDtos.CreateTimeLogRequest request) {
-        throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "Time logs are not in the current schema");
+        Employee e = employeeForEmail(email);
+        UUID orgId = requireOrganizationId();
+        if (request.hours() == null || request.hours().signum() < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "hours must be zero or positive");
+        }
+        TimeLog log = new TimeLog();
+        log.setOrganizationId(orgId);
+        log.setEmployee(e);
+        log.setWorkDate(request.workDate());
+        log.setHours(request.hours());
+        log.setProject(request.project() == null || request.project().isBlank() ? null : request.project().trim());
+        log.setNotes(request.notes() == null || request.notes().isBlank() ? null : request.notes().trim());
+        log.setCreatedAt(LocalDateTime.now());
+        return toTimeLog(timeLogRepository.save(log));
+    }
+
+    private WorkDtos.TimeLogResponse toTimeLog(TimeLog log) {
+        return new WorkDtos.TimeLogResponse(
+                log.getId(),
+                log.getEmployee().getId(),
+                log.getWorkDate(),
+                log.getHours(),
+                log.getProject(),
+                log.getNotes(),
+                toInstant(log.getCreatedAt()));
     }
 
     public List<WorkDtos.OnboardingTaskResponse> myOnboarding(String email) {
-        employeeForEmail(email);
-        return List.of();
+        Employee e = employeeForEmail(email);
+        return onboardingTaskRepository.findAllByEmployee_IdOrderBySortOrderAscCreatedAtAsc(e.getId()).stream()
+                .map(OpsService::toMyOnboarding)
+                .toList();
     }
 
-    public WorkDtos.OnboardingTaskResponse setOnboardingCompleted(String email, UUID taskId, WorkDtos.CompleteOnboardingTaskRequest request) {
-        throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "Onboarding tasks are not in the current schema");
+    @Transactional
+    public WorkDtos.OnboardingTaskResponse setOnboardingCompleted(
+            String email, UUID taskId, WorkDtos.CompleteOnboardingTaskRequest request) {
+        Employee e = employeeForEmail(email);
+        OnboardingTask task = onboardingTaskRepository
+                .findByIdAndEmployee_Id(taskId, e.getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Onboarding task not found"));
+        boolean completed = request == null || request.completed();
+        if (completed) {
+            task.setStatus("completed");
+            task.setCompletedAt(LocalDateTime.now());
+        } else {
+            task.setStatus("pending");
+            task.setCompletedAt(null);
+        }
+        return OpsService.toMyOnboarding(onboardingTaskRepository.save(task));
     }
 
     public WorkDtos.ApprovalsResponse pendingApprovals() {
-        return new WorkDtos.ApprovalsResponse(List.of());
+        UUID orgId = requireOrganizationId();
+        java.util.ArrayList<WorkDtos.ApprovalTaskResponse> tasks = new java.util.ArrayList<>();
+        for (LeaveRequest lr :
+                leaveRequestRepository.findAllByStatusAndEmployee_OrganizationIdOrderByCreatedAtDesc("pending", orgId)) {
+            Employee emp = lr.getEmployee();
+            tasks.add(new WorkDtos.ApprovalTaskResponse(
+                    lr.getId(),
+                    "LEAVE",
+                    lr.getId(),
+                    "PENDING",
+                    emp.getId(),
+                    name(emp),
+                    toInstant(lr.getCreatedAt())));
+        }
+        for (ExpenseClaim claim : expenseClaimRepository.findAllByStatusIgnoreCaseOrderByCreatedAtDesc("pending")) {
+            Employee emp = claim.getEmployee();
+            tasks.add(new WorkDtos.ApprovalTaskResponse(
+                    claim.getId(),
+                    "CLAIM",
+                    claim.getId(),
+                    "PENDING",
+                    emp.getId(),
+                    name(emp),
+                    toInstant(claim.getCreatedAt())));
+        }
+        return new WorkDtos.ApprovalsResponse(tasks);
     }
 
     public List<WorkDtos.FeedPostResponse> listFeed() {
-        return List.of();
+        return announcementRepository.findAllByOrderByCreatedAtDesc().stream()
+                .map(this::toFeed)
+                .toList();
     }
 
+    @Transactional
     public WorkDtos.FeedPostResponse createFeedPost(String authorEmail, WorkDtos.CreateFeedPostRequest request) {
-        throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "Feed is not in the current schema");
+        UUID orgId = requireOrganizationId();
+        AppUser author = appUserRepository
+                .findByEmail(authorEmail.trim().toLowerCase(Locale.US))
+                .orElse(null);
+        Employee authorEmployee = employeeRepository
+                .findByAppUser_EmailIgnoreCase(authorEmail.trim().toLowerCase(Locale.US))
+                .orElse(null);
+        LocalDateTime now = LocalDateTime.now();
+        Announcement a = new Announcement();
+        a.setOrganizationId(orgId);
+        a.setTitle(request.title().trim());
+        a.setContent(request.body().trim());
+        a.setType("general");
+        a.setTargetRole("ALL");
+        a.setPinned(false);
+        a.setPublishedAt(now);
+        a.setCreatedBy(author);
+        a.setCreatedAt(now);
+        a.setUpdatedAt(now);
+        Announcement saved = announcementRepository.save(a);
+        return new WorkDtos.FeedPostResponse(
+                saved.getId(),
+                saved.getTitle(),
+                saved.getContent(),
+                authorEmployee != null ? authorEmployee.getId() : null,
+                authorEmployee != null ? name(authorEmployee) : (author != null ? author.getEmail() : null),
+                toInstant(saved.getCreatedAt()));
+    }
+
+    private WorkDtos.FeedPostResponse toFeed(Announcement a) {
+        UUID authorEmployeeId = null;
+        String authorName = null;
+        if (a.getCreatedBy() != null) {
+            authorName = a.getCreatedBy().getEmail();
+            Employee emp = employeeRepository
+                    .findByAppUser_EmailIgnoreCase(a.getCreatedBy().getEmail())
+                    .orElse(null);
+            if (emp != null) {
+                authorEmployeeId = emp.getId();
+                authorName = name(emp);
+            }
+        }
+        return new WorkDtos.FeedPostResponse(
+                a.getId(),
+                a.getTitle(),
+                a.getContent(),
+                authorEmployeeId,
+                authorName,
+                toInstant(a.getCreatedAt()));
     }
 
     public List<WorkDtos.DocumentResponse> myDocuments(String email) {
@@ -547,15 +730,54 @@ public class WorkService {
     public WorkDtos.DocumentResponse addMyDocument(String email, WorkDtos.AddDocumentRequest request) {
         Employee e = employeeForEmail(email);
         AppUser uploader = appUserRepository.findByEmail(email.trim().toLowerCase(Locale.US)).orElse(null);
+        String contentBase64 =
+                request.contentBase64() == null || request.contentBase64().isBlank()
+                        ? null
+                        : request.contentBase64().trim();
+        String url = request.url() == null || request.url().isBlank() ? null : request.url().trim();
+        if (contentBase64 == null && url == null) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "Either url or contentBase64 is required");
+        }
+        if (url != null && !isAllowedDocumentUrl(url)) {
+            // When inline content is present, allow a placeholder/skipped URL; otherwise require
+            // https:// or novora://.
+            if (contentBase64 == null) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST, "Document URL must start with https:// or novora://");
+            }
+            url = null;
+        }
         LocalDateTime now = LocalDateTime.now();
         HrDocument d = new HrDocument();
+        d.setOrganizationId(requireOrganizationId());
         d.setEmployee(e);
         d.setTitle(request.name().trim());
         d.setType(normalizeDocType(request.docType()));
-        d.setFileUrl(request.url().trim());
+        d.setContentBase64(contentBase64);
+        d.setFileUrl(url != null ? url : "pending");
         d.setUploadedBy(uploader);
         d.setUploadedAt(now);
-        return toDoc(hrDocumentRepository.save(d));
+        HrDocument saved = hrDocumentRepository.save(d);
+        if (contentBase64 != null && (url == null || url.equals("pending"))) {
+            saved.setFileUrl("novora://documents/" + saved.getId());
+            saved = hrDocumentRepository.save(saved);
+        }
+        return toDoc(saved);
+    }
+
+    private static boolean isAllowedDocumentUrl(String url) {
+        String u = url.trim();
+        return u.matches("^https://[\\w.\\-]+(:\\d+)?(/[^\\s]*)?$")
+                || u.matches("^novora://documents/[0-9a-fA-F\\-]{36}$");
+    }
+
+    public WorkDtos.DocumentContentResponse myDocumentContent(String email, UUID docId) {
+        Employee e = employeeForEmail(email);
+        HrDocument d = hrDocumentRepository
+                .findByIdAndEmployee_Id(docId, e.getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Document not found"));
+        return new WorkDtos.DocumentContentResponse(d.getTitle(), d.getContentBase64(), d.getType());
     }
 
     private static String normalizeDocType(String raw) {

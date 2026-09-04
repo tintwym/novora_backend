@@ -52,4 +52,19 @@ public class AdminUserController {
         String callerEmail = authentication == null ? null : authentication.getName();
         return adminUserService.activateUser(id, request, callerEmail);
     }
+
+    @PostMapping("/api/admin/users/invite")
+    @ResponseStatus(HttpStatus.CREATED)
+    public AdminDtos.UserSummary inviteUser(
+            @Valid @RequestBody AdminDtos.InviteUserRequest request, Authentication authentication) {
+        String callerEmail = authentication == null ? null : authentication.getName();
+        return adminUserService.inviteUser(request, callerEmail);
+    }
+
+    @PostMapping("/api/admin/users/{id}/deactivate")
+    @ResponseStatus(HttpStatus.OK)
+    public AdminDtos.UserSummary deactivateUser(@PathVariable UUID id, Authentication authentication) {
+        String callerEmail = authentication == null ? null : authentication.getName();
+        return adminUserService.deactivateUser(id, callerEmail);
+    }
 }

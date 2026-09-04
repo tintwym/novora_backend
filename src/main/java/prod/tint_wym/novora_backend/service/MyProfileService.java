@@ -13,12 +13,17 @@ import org.springframework.web.server.ResponseStatusException;
 import prod.tint_wym.novora_backend.entity.AppUser;
 import prod.tint_wym.novora_backend.entity.Department;
 import prod.tint_wym.novora_backend.entity.Employee;
+import prod.tint_wym.novora_backend.entity.EmployeeEducation;
+import prod.tint_wym.novora_backend.entity.EmployeeFamily;
 import prod.tint_wym.novora_backend.entity.Position;
 import prod.tint_wym.novora_backend.dto.MyProfileDtos;
 import prod.tint_wym.novora_backend.repository.AppUserRepository;
 import prod.tint_wym.novora_backend.repository.DepartmentRepository;
+import prod.tint_wym.novora_backend.repository.EmployeeEducationRepository;
+import prod.tint_wym.novora_backend.repository.EmployeeFamilyRepository;
 import prod.tint_wym.novora_backend.repository.EmployeeRepository;
 import prod.tint_wym.novora_backend.repository.PositionRepository;
+import prod.tint_wym.novora_backend.tenancy.TenantContext;
 
 @Service
 public class MyProfileService {
@@ -30,6 +35,8 @@ public class MyProfileService {
     private final DepartmentRepository departmentRepository;
     private final PositionRepository positionRepository;
     private final ProfileOtpService profileOtpService;
+    private final EmployeeFamilyRepository employeeFamilyRepository;
+    private final EmployeeEducationRepository employeeEducationRepository;
     private final MyProfileService self;
 
     public MyProfileService(
@@ -38,6 +45,8 @@ public class MyProfileService {
             DepartmentRepository departmentRepository,
             PositionRepository positionRepository,
             ProfileOtpService profileOtpService,
+            EmployeeFamilyRepository employeeFamilyRepository,
+            EmployeeEducationRepository employeeEducationRepository,
             @Lazy MyProfileService self
     ) {
         this.employeeRepository = employeeRepository;
@@ -45,6 +54,8 @@ public class MyProfileService {
         this.departmentRepository = departmentRepository;
         this.positionRepository = positionRepository;
         this.profileOtpService = profileOtpService;
+        this.employeeFamilyRepository = employeeFamilyRepository;
+        this.employeeEducationRepository = employeeEducationRepository;
         this.self = self;
     }
 
@@ -188,44 +199,130 @@ public class MyProfileService {
 
     @org.springframework.transaction.annotation.Transactional(readOnly = true)
     public List<MyProfileDtos.FamilyResponse> listMyFamily(String email) {
-        self.ensureEmployeeForEmail(email);
-        return List.of();
+        Employee employee = self.ensureEmployeeForEmail(email);
+        return employeeFamilyRepository.findAllByEmployee_IdOrderByCreatedAtDesc(employee.getId()).stream()
+                .map(this::toFamily)
+                .toList();
     }
 
     @Transactional
     public MyProfileDtos.FamilyResponse createMyFamily(String email, MyProfileDtos.CreateFamilyRequest request) {
-        throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "Family records are not in the current schema");
+        Employee employee = self.ensureEmployeeForEmail(email);
+        UUID orgId = requireOrgId(employee);
+        EmployeeFamily row = new EmployeeFamily();
+        row.setOrganizationId(orgId);
+        row.setEmployee(employee);
+        row.setFullName(request.name().trim());
+        row.setRelationship(trimToNull(request.relationship()));
+        row.setDateOfBirth(request.dateOfBirth());
+        row.setPhone(trimToNull(request.phone()));
+        row.setCreatedAt(LocalDateTime.now());
+        return toFamily(employeeFamilyRepository.save(row));
     }
 
     @Transactional
-    public MyProfileDtos.FamilyResponse updateMyFamily(String email, UUID familyId, MyProfileDtos.UpdateFamilyRequest request) {
-        throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "Family records are not in the current schema");
+    public MyProfileDtos.FamilyResponse updateMyFamily(
+            String email, UUID familyId, MyProfileDtos.UpdateFamilyRequest request) {
+        Employee employee = self.ensureEmployeeForEmail(email);
+        EmployeeFamily row = employeeFamilyRepository
+                .findByIdAndEmployee_Id(familyId, employee.getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Family member not found"));
+        row.setFullName(request.name().trim());
+        row.setRelationship(trimToNull(request.relationship()));
+        row.setDateOfBirth(request.dateOfBirth());
+        row.setPhone(trimToNull(request.phone()));
+        return toFamily(employeeFamilyRepository.save(row));
     }
 
     @Transactional
     public void deleteMyFamily(String email, UUID familyId) {
-        throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "Family records are not in the current schema");
+        Employee employee = self.ensureEmployeeForEmail(email);
+        EmployeeFamily row = employeeFamilyRepository
+                .findByIdAndEmployee_Id(familyId, employee.getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Family member not found"));
+        employeeFamilyRepository.delete(row);
     }
 
     @org.springframework.transaction.annotation.Transactional(readOnly = true)
     public List<MyProfileDtos.EducationResponse> listMyEducation(String email) {
-        self.ensureEmployeeForEmail(email);
-        return List.of();
+        Employee employee = self.ensureEmployeeForEmail(email);
+        return employeeEducationRepository.findAllByEmployee_IdOrderByCreatedAtDesc(employee.getId()).stream()
+                .map(this::toEducation)
+                .toList();
     }
 
     @Transactional
-    public MyProfileDtos.EducationResponse createMyEducation(String email, MyProfileDtos.CreateEducationRequest request) {
-        throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "Education records are not in the current schema");
+    public MyProfileDtos.EducationResponse createMyEducation(
+            String email, MyProfileDtos.CreateEducationRequest request) {
+        Employee employee = self.ensureEmployeeForEmail(email);
+        UUID orgId = requireOrgId(employee);
+        EmployeeEducation row = new EmployeeEducation();
+        row.setOrganizationId(orgId);
+        row.setEmployee(employee);
+        row.setInstitution(request.institution().trim());
+        row.setDegree(trimToNull(request.degree()));
+        row.setFieldOfStudy(trimToNull(request.fieldOfStudy()));
+        row.setStartYear(request.startDate() != null ? request.startDate().getYear() : null);
+        row.setEndYear(request.endDate() != null ? request.endDate().getYear() : null);
+        row.setCreatedAt(LocalDateTime.now());
+        return toEducation(employeeEducationRepository.save(row));
     }
 
     @Transactional
-    public MyProfileDtos.EducationResponse updateMyEducation(String email, UUID educationId, MyProfileDtos.UpdateEducationRequest request) {
-        throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "Education records are not in the current schema");
+    public MyProfileDtos.EducationResponse updateMyEducation(
+            String email, UUID educationId, MyProfileDtos.UpdateEducationRequest request) {
+        Employee employee = self.ensureEmployeeForEmail(email);
+        EmployeeEducation row = employeeEducationRepository
+                .findByIdAndEmployee_Id(educationId, employee.getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Education record not found"));
+        row.setInstitution(request.institution().trim());
+        row.setDegree(trimToNull(request.degree()));
+        row.setFieldOfStudy(trimToNull(request.fieldOfStudy()));
+        row.setStartYear(request.startDate() != null ? request.startDate().getYear() : null);
+        row.setEndYear(request.endDate() != null ? request.endDate().getYear() : null);
+        return toEducation(employeeEducationRepository.save(row));
     }
 
     @Transactional
     public void deleteMyEducation(String email, UUID educationId) {
-        throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "Education records are not in the current schema");
+        Employee employee = self.ensureEmployeeForEmail(email);
+        EmployeeEducation row = employeeEducationRepository
+                .findByIdAndEmployee_Id(educationId, employee.getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Education record not found"));
+        employeeEducationRepository.delete(row);
+    }
+
+    private MyProfileDtos.FamilyResponse toFamily(EmployeeFamily row) {
+        return new MyProfileDtos.FamilyResponse(
+                row.getId(),
+                row.getFullName(),
+                row.getRelationship(),
+                row.getDateOfBirth(),
+                row.getPhone());
+    }
+
+    private MyProfileDtos.EducationResponse toEducation(EmployeeEducation row) {
+        LocalDate start = row.getStartYear() != null ? LocalDate.of(row.getStartYear(), 1, 1) : null;
+        LocalDate end = row.getEndYear() != null ? LocalDate.of(row.getEndYear(), 1, 1) : null;
+        return new MyProfileDtos.EducationResponse(
+                row.getId(),
+                row.getInstitution(),
+                row.getDegree(),
+                row.getFieldOfStudy(),
+                start,
+                end,
+                null);
+    }
+
+    private UUID requireOrgId(Employee employee) {
+        UUID orgId = employee.getOrganizationId();
+        if (orgId == null) {
+            orgId = TenantContext.get();
+        }
+        if (orgId == null) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "No organization context");
+        }
+        return orgId;
     }
 
     @org.springframework.transaction.annotation.Transactional(readOnly = true)
