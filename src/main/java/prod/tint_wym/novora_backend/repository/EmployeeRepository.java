@@ -16,5 +16,8 @@ public interface EmployeeRepository extends JpaRepository<Employee, UUID> {
 
     Optional<Employee> findByIdAndOrganizationId(UUID id, UUID organizationId);
 
+    List<Employee> findAllByOrganizationIdAndStatusIgnoreCaseOrderByFirstNameAscLastNameAsc(
+            UUID organizationId, String status);
+
     long countByStatusNotIgnoreCase(String excludedStatus);
 }

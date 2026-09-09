@@ -79,6 +79,15 @@ public final class WorkDtos {
     ) {
     }
 
+    public record AdminPunchRequest(
+            @NotNull UUID employeeId,
+            @NotBlank String punchType, // CHECK_IN|CHECK_OUT
+            LocalDate workDate,
+            @Size(max = 10) String time, // HH:mm optional
+            @Size(max = 500) String reason
+    ) {
+    }
+
     // Time logs
     public record TimeLogResponse(
             UUID id,

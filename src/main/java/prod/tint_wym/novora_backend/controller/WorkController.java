@@ -171,6 +171,12 @@ public class WorkController {
         return workService.upsertAttendanceForEmployee(employeeId, request);
     }
 
+    @PostMapping("/api/admin/attendance/punch")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','HR_ADMIN','HR_MANAGER')")
+    public WorkDtos.AttendanceLogResponse adminPunch(@Valid @RequestBody WorkDtos.AdminPunchRequest request) {
+        return workService.adminPunch(request);
+    }
+
     @GetMapping("/api/admin/employees/{employeeId}/documents")
     @PreAuthorize("hasAnyRole('SUPER_ADMIN','HR_ADMIN','HR_MANAGER')")
     public List<WorkDtos.DocumentResponse> employeeDocuments(@PathVariable UUID employeeId) {

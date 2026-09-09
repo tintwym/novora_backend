@@ -71,8 +71,108 @@ public class CatalogController {
     }
 
     @GetMapping("/api/admin/attendance/roster")
-    public List<WorkDtos.AttendanceLogResponse> attendanceRoster() {
-        return catalogService.listAttendanceRoster();
+    public List<WorkDtos.AttendanceLogResponse> attendanceRoster(
+            @RequestParam(value = "date", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+                    LocalDate date) {
+        return catalogService.listAttendanceRoster(date);
+    }
+
+    @GetMapping("/api/admin/attendance/today")
+    public List<CatalogDtos.AttendanceTodayRow> attendanceToday(
+            @RequestParam(value = "date", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+                    LocalDate date) {
+        return catalogService.listAttendanceToday(date);
+    }
+
+    @GetMapping("/api/admin/bonus-types")
+    public List<CatalogDtos.BonusTypeResponse> listBonusTypes() {
+        return catalogService.listBonusTypes();
+    }
+
+    @PostMapping("/api/admin/bonus-types")
+    @ResponseStatus(HttpStatus.CREATED)
+    public CatalogDtos.BonusTypeResponse createBonusType(
+            @Valid @RequestBody CatalogDtos.CreateBonusTypeRequest request) {
+        return catalogService.createBonusType(request);
+    }
+
+    @GetMapping("/api/admin/deduction-types")
+    public List<CatalogDtos.DeductionTypeResponse> listDeductionTypes() {
+        return catalogService.listDeductionTypes();
+    }
+
+    @PostMapping("/api/admin/deduction-types")
+    @ResponseStatus(HttpStatus.CREATED)
+    public CatalogDtos.DeductionTypeResponse createDeductionType(
+            @Valid @RequestBody CatalogDtos.CreateDeductionTypeRequest request) {
+        return catalogService.createDeductionType(request);
+    }
+
+    @GetMapping("/api/admin/deposit-types")
+    public List<CatalogDtos.DepositTypeResponse> listDepositTypes() {
+        return catalogService.listDepositTypes();
+    }
+
+    @PostMapping("/api/admin/deposit-types")
+    @ResponseStatus(HttpStatus.CREATED)
+    public CatalogDtos.DepositTypeResponse createDepositType(
+            @Valid @RequestBody CatalogDtos.CreateDepositTypeRequest request) {
+        return catalogService.createDepositType(request);
+    }
+
+    @GetMapping("/api/admin/tax-categories")
+    public List<CatalogDtos.TaxCategoryResponse> listTaxCategories() {
+        return catalogService.listTaxCategories();
+    }
+
+    @PostMapping("/api/admin/tax-categories")
+    @ResponseStatus(HttpStatus.CREATED)
+    public CatalogDtos.TaxCategoryResponse createTaxCategory(
+            @Valid @RequestBody CatalogDtos.CreateTaxCategoryRequest request) {
+        return catalogService.createTaxCategory(request);
+    }
+
+    @GetMapping("/api/admin/ot-policies")
+    public List<CatalogDtos.OtPolicyResponse> listOtPolicies() {
+        return catalogService.listOtPolicies();
+    }
+
+    @PostMapping("/api/admin/ot-policies")
+    @ResponseStatus(HttpStatus.CREATED)
+    public CatalogDtos.OtPolicyResponse createOtPolicy(
+            @Valid @RequestBody CatalogDtos.CreateOtPolicyRequest request) {
+        return catalogService.createOtPolicy(request);
+    }
+
+    @PutMapping("/api/admin/ot-policies/{id}")
+    public CatalogDtos.OtPolicyResponse updateOtPolicy(
+            @PathVariable UUID id, @Valid @RequestBody CatalogDtos.UpdateOtPolicyRequest request) {
+        return catalogService.updateOtPolicy(id, request);
+    }
+
+    @GetMapping("/api/admin/overtime-records")
+    public List<CatalogDtos.OvertimeRecordResponse> listOvertimeRecords(
+            @RequestParam(value = "from", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+                    LocalDate from,
+            @RequestParam(value = "to", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+                    LocalDate to,
+            @RequestParam(value = "status", required = false) String status) {
+        return catalogService.listOvertimeRecords(from, to, status);
+    }
+
+    @PostMapping("/api/admin/overtime-records")
+    @ResponseStatus(HttpStatus.CREATED)
+    public CatalogDtos.OvertimeRecordResponse createOvertime(
+            @Valid @RequestBody CatalogDtos.CreateOvertimeRequest request) {
+        return catalogService.createOvertime(request);
+    }
+
+    @PostMapping("/api/admin/overtime-records/{id}/decide")
+    public CatalogDtos.OvertimeRecordResponse decideOvertime(
+            Authentication auth,
+            @PathVariable UUID id,
+            @Valid @RequestBody CatalogDtos.DecideOvertimeRequest request) {
+        return catalogService.decideOvertime(auth.getName(), id, request);
     }
 
     @GetMapping("/api/admin/positions")

@@ -278,4 +278,173 @@ public final class CatalogDtos {
             long payrollHeadcountThisMonth
     ) {
     }
+
+    public record BonusTypeResponse(
+            UUID id,
+            String name,
+            String code,
+            BigDecimal amount,
+            boolean taxable,
+            boolean active,
+            String description,
+            Instant createdAt
+    ) {
+    }
+
+    public record CreateBonusTypeRequest(
+            @NotBlank @Size(max = 120) String name,
+            @NotBlank @Size(max = 40) String code,
+            @NotNull BigDecimal amount,
+            Boolean taxable,
+            Boolean active,
+            @Size(max = 2000) String description
+    ) {
+    }
+
+    public record DeductionTypeResponse(
+            UUID id,
+            String name,
+            String code,
+            BigDecimal amount,
+            String frequency,
+            boolean active,
+            String description,
+            Instant createdAt
+    ) {
+    }
+
+    public record CreateDeductionTypeRequest(
+            @NotBlank @Size(max = 120) String name,
+            @NotBlank @Size(max = 40) String code,
+            @NotNull BigDecimal amount,
+            @Size(max = 20) String frequency,
+            Boolean active,
+            @Size(max = 2000) String description
+    ) {
+    }
+
+    public record DepositTypeResponse(
+            UUID id,
+            String name,
+            String code,
+            BigDecimal amount,
+            boolean refundable,
+            boolean active,
+            String description,
+            Instant createdAt
+    ) {
+    }
+
+    public record CreateDepositTypeRequest(
+            @NotBlank @Size(max = 120) String name,
+            @NotBlank @Size(max = 40) String code,
+            @NotNull BigDecimal amount,
+            Boolean refundable,
+            Boolean active,
+            @Size(max = 2000) String description
+    ) {
+    }
+
+    public record TaxCategoryResponse(
+            UUID id,
+            String name,
+            String code,
+            BigDecimal rate,
+            boolean active,
+            String description,
+            Instant createdAt
+    ) {
+    }
+
+    public record CreateTaxCategoryRequest(
+            @NotBlank @Size(max = 120) String name,
+            @NotBlank @Size(max = 40) String code,
+            BigDecimal rate,
+            Boolean active,
+            @Size(max = 2000) String description
+    ) {
+    }
+
+    public record OtPolicyResponse(
+            UUID id,
+            String name,
+            BigDecimal weekdayMultiplier,
+            BigDecimal weekendMultiplier,
+            BigDecimal holidayMultiplier,
+            BigDecimal dailyThresholdHours,
+            boolean requiresApproval,
+            boolean active,
+            String notes,
+            Instant createdAt
+    ) {
+    }
+
+    public record CreateOtPolicyRequest(
+            @NotBlank @Size(max = 120) String name,
+            BigDecimal weekdayMultiplier,
+            BigDecimal weekendMultiplier,
+            BigDecimal holidayMultiplier,
+            BigDecimal dailyThresholdHours,
+            Boolean requiresApproval,
+            Boolean active,
+            @Size(max = 5000) String notes
+    ) {
+    }
+
+    public record UpdateOtPolicyRequest(
+            @Size(max = 120) String name,
+            BigDecimal weekdayMultiplier,
+            BigDecimal weekendMultiplier,
+            BigDecimal holidayMultiplier,
+            BigDecimal dailyThresholdHours,
+            Boolean requiresApproval,
+            Boolean active,
+            @Size(max = 5000) String notes
+    ) {
+    }
+
+    public record OvertimeRecordResponse(
+            UUID id,
+            UUID employeeId,
+            String employeeName,
+            LocalDate workDate,
+            String startTime,
+            String endTime,
+            BigDecimal hours,
+            String reason,
+            String status,
+            UUID decidedBy,
+            String decisionNote,
+            Instant createdAt
+    ) {
+    }
+
+    public record CreateOvertimeRequest(
+            @NotNull UUID employeeId,
+            @NotNull LocalDate workDate,
+            @Size(max = 10) String startTime,
+            @Size(max = 10) String endTime,
+            @NotNull BigDecimal hours,
+            @Size(max = 2000) String reason
+    ) {
+    }
+
+    public record DecideOvertimeRequest(
+            @NotBlank String decision, // APPROVE|REJECT
+            @Size(max = 500) String note
+    ) {
+    }
+
+    public record AttendanceTodayRow(
+            UUID employeeId,
+            String employeeName,
+            String departmentName,
+            String shiftName,
+            LocalTime checkIn,
+            LocalTime checkOut,
+            BigDecimal hours,
+            String status,
+            boolean officeFlag
+    ) {
+    }
 }

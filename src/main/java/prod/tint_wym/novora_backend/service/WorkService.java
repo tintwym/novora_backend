@@ -428,6 +428,62 @@ public class WorkService {
         return toAttendance(attendanceRepository.save(log));
     }
 
+    @Transactional
+    public WorkDtos.AttendanceLogResponse adminPunch(WorkDtos.AdminPunchRequest request) {
+        Employee e = requireEmployeeInOrg(request.employeeId());
+        LocalDate workDate = request.workDate() != null ? request.workDate() : LocalDate.now(ZONE);
+        LocalTime punchTime;
+        if (request.time() != null && !request.time().isBlank()) {
+            try {
+                punchTime = LocalTime.parse(request.time().trim());
+            } catch (Exception ex) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "time must be HH:mm");
+            }
+        } else {
+            punchTime = LocalTime.now(ZONE);
+        }
+        String punchType = request.punchType().trim().toUpperCase(Locale.US);
+        if (!punchType.equals("CHECK_IN") && !punchType.equals("CHECK_OUT")) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "punchType must be CHECK_IN or CHECK_OUT");
+        }
+
+        Attendance log = attendanceRepository.findByEmployee_IdAndWorkDate(e.getId(), workDate).orElseGet(() -> {
+            Attendance n = new Attendance();
+            n.setEmployee(e);
+            n.setWorkDate(workDate);
+            LocalDateTime now = LocalDateTime.now();
+            n.setCreatedAt(now);
+            n.setOvertimeHours(BigDecimal.ZERO);
+            return n;
+        });
+
+        LocalDateTime punchAt = LocalDateTime.of(workDate, punchTime);
+        if (punchType.equals("CHECK_IN")) {
+            log.setCheckIn(punchAt);
+            if (log.getStatus() == null
+                    || log.getStatus().isBlank()
+                    || "absent".equalsIgnoreCase(log.getStatus())
+                    || "on_leave".equalsIgnoreCase(log.getStatus())) {
+                log.setStatus(deriveStatusFromCheckInTime(punchTime));
+            }
+        } else {
+            if (log.getCheckIn() == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Check in before checking out");
+            }
+            log.setCheckOut(punchAt);
+            recalculateWorkHours(log);
+        }
+        if (request.reason() != null && !request.reason().isBlank()) {
+            log.setNotes(request.reason().trim());
+        }
+        LocalDateTime now = LocalDateTime.now();
+        log.setUpdatedAt(now);
+        if (log.getCreatedAt() == null) {
+            log.setCreatedAt(now);
+        }
+        return toAttendance(attendanceRepository.save(log));
+    }
+
     /**
      * Mark check-in for today (server local date). Zoho People-style punch: one check-in per calendar day.
      */
