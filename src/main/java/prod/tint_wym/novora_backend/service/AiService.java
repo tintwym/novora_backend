@@ -1,7 +1,5 @@
 package prod.tint_wym.novora_backend.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -10,6 +8,7 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.json.JsonParserFactory;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
@@ -20,12 +19,10 @@ public class AiService {
 
     private static final Logger log = LoggerFactory.getLogger(AiService.class);
     private static final String DISCLAIMER =
-            "AI suggested — review before acting. No automated people decisions.";
+            "AI suggested - review before acting. No automated people decisions.";
     private static final String DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
     private static final String DEFAULT_MODEL = "gemini-2.0-flash";
 
-    /** Local mapper — Spring Boot 4 webmvc does not always expose an ObjectMapper bean. */
-    private final ObjectMapper objectMapper = new ObjectMapper();
     private final RestClient restClient;
     private final boolean enabled;
     private final String apiKey;
@@ -121,23 +118,52 @@ public class AiService {
                 .retrieve()
                 .body(String.class);
 
+        return extractGeminiText(json);
+    }
+
+    private static String extractGeminiText(String json) {
         try {
-            JsonNode root = objectMapper.readTree(json == null ? "{}" : json);
-            JsonNode parts = root.path("candidates").path(0).path("content").path("parts");
-            if (!parts.isArray() || parts.isEmpty()) {
-                String block = root.path("promptFeedback").path("blockReason").asText("");
-                if (!block.isBlank()) {
-                    throw new IllegalStateException("Gemini blocked prompt: " + block);
+            Map<String, Object> root = JsonParserFactory.getJsonParser().parseMap(json == null ? "{}" : json);
+            Object candidatesObj = root.get("candidates");
+            if (!(candidatesObj instanceof List<?> candidates) || candidates.isEmpty()) {
+                Object feedback = root.get("promptFeedback");
+                if (feedback instanceof Map<?, ?> fb) {
+                    Object block = fb.get("blockReason");
+                    if (block != null && !String.valueOf(block).isBlank()) {
+                        throw new IllegalStateException("Gemini blocked prompt: " + block);
+                    }
                 }
                 return "";
             }
+            Object first = candidates.get(0);
+            if (!(first instanceof Map<?, ?> candidate)) {
+                return "";
+            }
+            Object contentObj = candidate.get("content");
+            if (!(contentObj instanceof Map<?, ?> content)) {
+                return "";
+            }
+            Object partsObj = content.get("parts");
+            if (!(partsObj instanceof List<?> parts) || parts.isEmpty()) {
+                return "";
+            }
             StringBuilder text = new StringBuilder();
-            for (JsonNode part : parts) {
-                String piece = part.path("text").asText("");
-                if (!piece.isBlank()) {
-                    if (!text.isEmpty()) text.append('\n');
-                    text.append(piece);
+            for (Object partObj : parts) {
+                if (!(partObj instanceof Map<?, ?> part)) {
+                    continue;
                 }
+                Object piece = part.get("text");
+                if (piece == null) {
+                    continue;
+                }
+                String value = String.valueOf(piece).trim();
+                if (value.isBlank()) {
+                    continue;
+                }
+                if (!text.isEmpty()) {
+                    text.append('\n');
+                }
+                text.append(value);
             }
             return text.toString().trim();
         } catch (IllegalStateException ex) {
@@ -217,39 +243,39 @@ public class AiService {
         if (attendance != null && attendance < 90) {
             insights.add("Attendance is at "
                     + String.format(Locale.US, "%.0f", attendance)
-                    + "% — review late/absent patterns in Attendance before week-end.");
+                    + "% - review late/absent patterns in Attendance before week-end.");
         } else if (attendance != null) {
             insights.add("Attendance holds at "
                     + String.format(Locale.US, "%.0f", attendance)
-                    + "% present — keep an eye on late punches this week.");
+                    + "% present - keep an eye on late punches this week.");
         }
 
         if (openRoles != null && openRoles > 0) {
             insights.add(openRoles + " open role"
                     + (openRoles == 1 ? "" : "s")
-                    + " in Recruitment — prioritise screening to keep time-to-hire down.");
+                    + " in Recruitment - prioritise screening to keep time-to-hire down.");
         }
 
         if (pendingLeave != null && pendingLeave > 0) {
             insights.add(pendingLeave + " leave request"
                     + (pendingLeave == 1 ? "" : "s")
-                    + " waiting — clear the Leave queue to unblock payroll planning.");
+                    + " waiting - clear the Leave queue to unblock payroll planning.");
         }
 
         if (interviews != null && interviews > 0) {
             insights.add(interviews + " upcoming interview"
                     + (interviews == 1 ? "" : "s")
-                    + " — confirm panels and scorecards in Recruitment.");
+                    + " - confirm panels and scorecards in Recruitment.");
         }
 
         if (onboarding != null && onboarding > 0) {
             insights.add(onboarding + " new hire"
                     + (onboarding == 1 ? "" : "s")
-                    + " still mid-onboarding — nudge incomplete checklist owners.");
+                    + " still mid-onboarding - nudge incomplete checklist owners.");
         }
 
         if (insights.isEmpty()) {
-            insights.add("Workforce metrics look steady — scan Hiring Funnel and Needs Attention for the next action.");
+            insights.add("Workforce metrics look steady - scan Hiring Funnel and Needs Attention for the next action.");
             insights.add("Use Punch In/Out on the dashboard to keep today's attendance current.");
             insights.add("Open Reports if you need a deeper export for leadership.");
         }
@@ -272,7 +298,7 @@ public class AiService {
         draft.append("Hi ").append(name).append(",\n\n");
         draft.append("Thanks for reaching out about \"").append(subject).append("\". ");
         draft.append("I've reviewed your ticket");
-        if (!category.isBlank() && !"—".equals(category)) {
+        if (!category.isBlank() && !"-".equals(category)) {
             draft.append(" under ").append(category);
         }
         draft.append(" and I'm looking into this now.\n\n");
@@ -284,6 +310,6 @@ public class AiService {
     }
 
     private static String nullToDash(String value) {
-        return value == null || value.isBlank() ? "—" : value.trim();
+        return value == null || value.isBlank() ? "-" : value.trim();
     }
 }
