@@ -152,13 +152,56 @@ public class DashboardService {
                 "#22c55e",
                 flatSparkSeries(Math.round(attendanceRate == null ? 0.0 : attendanceRate), 6)
         ));
+        // Open roles = sum of openings on job postings currently in status "open".
+        Long openPositionsRaw = jdbc.queryForObject(
+                """
+                select coalesce(sum(greatest(coalesce(openings, 1), 1)), 0)::bigint
+                from job_postings
+                where organization_id = ?
+                  and lower(coalesce(status, '')) = 'open'
+                """,
+                Long.class,
+                orgId
+        );
+        long openPositions = openPositionsRaw == null ? 0L : openPositionsRaw;
+
+        // MoM delta from openings that started this calendar month vs previous month.
+        Long openThisMonthRaw = jdbc.queryForObject(
+                """
+                select coalesce(sum(greatest(coalesce(openings, 1), 1)), 0)::bigint
+                from job_postings
+                where organization_id = ?
+                  and lower(coalesce(status, '')) = 'open'
+                  and coalesce(open_date, created_at::date)
+                        >= date_trunc('month', current_date)::date
+                """,
+                Long.class,
+                orgId
+        );
+        Long openPrevMonthRaw = jdbc.queryForObject(
+                """
+                select coalesce(sum(greatest(coalesce(openings, 1), 1)), 0)::bigint
+                from job_postings
+                where organization_id = ?
+                  and lower(coalesce(status, '')) = 'open'
+                  and coalesce(open_date, created_at::date)
+                        >= (date_trunc('month', current_date) - interval '1 month')::date
+                  and coalesce(open_date, created_at::date)
+                        <  date_trunc('month', current_date)::date
+                """,
+                Long.class,
+                orgId
+        );
+        long openThisMonth = openThisMonthRaw == null ? 0L : openThisMonthRaw;
+        long openPrevMonth = openPrevMonthRaw == null ? 0L : openPrevMonthRaw;
+
         kpis.add(new DashboardDtos.Kpi(
                 "Open Positions",
-                "0",
-                "—",
+                formatInt(openPositions),
+                formatPctChange(openPrevMonth, openThisMonth),
                 "briefcase",
                 "#6366f1",
-                flatSparkSeries(0, 6)
+                flatSparkSeries(openPositions, 6)
         ));
         kpis.add(new DashboardDtos.Kpi(
                 "Turnover Rate",
