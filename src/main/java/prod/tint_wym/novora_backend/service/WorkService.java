@@ -61,7 +61,7 @@ public class WorkService {
             "contract", "id_card", "certificate", "payslip", "offer_letter",
             "nda", "warning_letter", "appraisal", "other");
 
-    private static final ZoneId ZONE = ZoneId.systemDefault();
+    private static final ZoneId ZONE = ZoneId.of("Asia/Singapore");
     /** Expected start of day for simple "late" detection (Zoho People-style default shift). */
     private static final LocalTime DEFAULT_SHIFT_START = LocalTime.of(9, 0);
 
@@ -77,6 +77,7 @@ public class WorkService {
     private final OnboardingTaskRepository onboardingTaskRepository;
     private final ExpenseClaimRepository expenseClaimRepository;
     private final NotificationService notificationService;
+    private final MyProfileService myProfileService;
 
     public WorkService(
             EmployeeRepository employeeRepository,
@@ -90,7 +91,8 @@ public class WorkService {
             TimeLogRepository timeLogRepository,
             OnboardingTaskRepository onboardingTaskRepository,
             ExpenseClaimRepository expenseClaimRepository,
-            NotificationService notificationService
+            NotificationService notificationService,
+            MyProfileService myProfileService
     ) {
         this.employeeRepository = employeeRepository;
         this.leaveRequestRepository = leaveRequestRepository;
@@ -104,6 +106,7 @@ public class WorkService {
         this.onboardingTaskRepository = onboardingTaskRepository;
         this.expenseClaimRepository = expenseClaimRepository;
         this.notificationService = notificationService;
+        this.myProfileService = myProfileService;
     }
 
     private static String name(Employee e) {
@@ -111,9 +114,9 @@ public class WorkService {
     }
 
     private Employee employeeForEmail(String email) {
-        String normalized = email == null ? "" : email.trim().toLowerCase(Locale.US);
-        return employeeRepository.findByAppUser_EmailIgnoreCase(normalized)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Employee not found for user"));
+        // Provision an employee row on first punch/self-service call so admin logins
+        // without a linked roster record can still check in from the dashboard.
+        return myProfileService.ensureEmployeeForEmail(email);
     }
 
     private UUID requireOrganizationId() {

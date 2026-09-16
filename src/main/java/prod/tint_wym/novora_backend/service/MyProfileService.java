@@ -74,6 +74,10 @@ public class MyProfileService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "No position seed"));
         LocalDateTime now = LocalDateTime.now();
         Employee e = new Employee();
+        UUID orgId = TenantContext.get();
+        if (orgId != null) {
+            e.setOrganizationId(orgId);
+        }
         e.setEmail(normalized);
         e.setAppUser(user);
         e.setDepartment(department);
