@@ -24,20 +24,19 @@ public class AiService {
     private static final String DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
     private static final String DEFAULT_MODEL = "gemini-2.0-flash";
 
-    private final ObjectMapper objectMapper;
+    /** Local mapper — Spring Boot 4 webmvc does not always expose an ObjectMapper bean. */
+    private final ObjectMapper objectMapper = new ObjectMapper();
     private final RestClient restClient;
     private final boolean enabled;
     private final String apiKey;
     private final String model;
 
     public AiService(
-            ObjectMapper objectMapper,
             @Value("${app.ai.enabled:true}") boolean enabled,
             @Value("${app.ai.api-key:}") String apiKey,
-            @Value("${app.ai.base-url:https://generativelanguage.googleapis.com/v1beta}") String baseUrl,
+            @Value("${app.ai.base-url:}") String baseUrl,
             @Value("${app.ai.model:gemini-2.0-flash}") String model
     ) {
-        this.objectMapper = objectMapper;
         this.enabled = enabled;
         this.apiKey = apiKey == null ? "" : apiKey.trim();
         this.model = model == null || model.isBlank() ? DEFAULT_MODEL : model.trim();
