@@ -104,10 +104,18 @@ public class ClaimService {
 
     @Transactional
     public ClaimDtos.ClaimResponse createMyClaim(String email, ClaimDtos.CreateClaimRequest request) {
-        Employee e = employeeForEmail(email);
+        UUID orgId = requireOrganizationId();
+        Employee e;
+        if (request.employeeId() != null) {
+            e = employeeRepository
+                    .findByIdAndOrganizationId(request.employeeId(), orgId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Claimant employee not found"));
+        } else {
+            e = employeeForEmail(email);
+        }
         LocalDateTime now = LocalDateTime.now();
         ExpenseClaim claim = new ExpenseClaim();
-        claim.setOrganizationId(requireOrganizationId());
+        claim.setOrganizationId(orgId);
         claim.setEmployee(e);
         claim.setCategory(request.category().trim());
         claim.setClaimDate(request.claimDate());

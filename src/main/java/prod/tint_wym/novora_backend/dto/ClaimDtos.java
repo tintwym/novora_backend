@@ -38,7 +38,8 @@ public final class ClaimDtos {
             @NotNull @DecimalMin("0.01") BigDecimal amount,
             @Size(max = 3) String currency,
             @Size(max = 200) String vendor,
-            @Size(max = 1000) String description
+            @Size(max = 1000) String description,
+            UUID employeeId
     ) {
     }
 
