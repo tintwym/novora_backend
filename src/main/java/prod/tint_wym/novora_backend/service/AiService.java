@@ -84,6 +84,142 @@ public class AiService {
         return new AiDtos.HelpdeskDraftResponse(heuristicHelpdeskDraft(request), "heuristic", DISCLAIMER);
     }
 
+    public AiDtos.RecruitmentJdDraftResponse recruitmentJdDraft(AiDtos.RecruitmentJdDraftRequest request) {
+        if (canCallModel()) {
+            try {
+                String draft = generateContent(
+                        "You are a recruitment specialist for Novora HRMS. Draft a clear job description "
+                                + "in plain text with these sections: Summary, Key responsibilities (bullet lines "
+                                + "starting with - ), Requirements, Nice-to-have. Keep it concise (180-320 words). "
+                                + "Do not invent company policies, benefits, or salary figures not provided. "
+                                + "No markdown headings with #.",
+                        buildJdPrompt(request),
+                        1600);
+                if (draft != null && !draft.isBlank()) {
+                    return new AiDtos.RecruitmentJdDraftResponse(draft.trim(), "gemini", DISCLAIMER);
+                }
+            } catch (Exception ex) {
+                log.warn("Gemini JD draft fell back to heuristics: {}", ex.getMessage());
+            }
+        }
+        return new AiDtos.RecruitmentJdDraftResponse(heuristicJdDraft(request), "heuristic", DISCLAIMER);
+    }
+
+    public AiDtos.CandidateSummaryResponse candidateSummary(AiDtos.CandidateSummaryRequest request) {
+        if (canCallModel()) {
+            try {
+                String raw = generateContent(
+                        "You are a recruiting co-pilot for Novora HRMS. Return plain text only with exactly "
+                                + "these labeled sections:\n"
+                                + "SUMMARY: one short paragraph\n"
+                                + "STRENGTHS:\n- item\n- item\n- item\n"
+                                + "RISKS:\n- item\n- item\n"
+                                + "QUESTIONS:\n- interview question\n- interview question\n- interview question\n"
+                                + "Do not invent employment history. If notes are thin, say what is missing. "
+                                + "This is a screening aid only - not a hiring decision.",
+                        buildCandidatePrompt(request),
+                        1200);
+                AiDtos.CandidateSummaryResponse parsed = parseCandidateSummary(raw);
+                if (parsed != null) {
+                    return parsed;
+                }
+            } catch (Exception ex) {
+                log.warn("Gemini candidate summary fell back to heuristics: {}", ex.getMessage());
+            }
+        }
+        return heuristicCandidateSummary(request);
+    }
+
+    public AiDtos.PerformanceReviewDraftResponse performanceReviewDraft(
+            AiDtos.PerformanceReviewDraftRequest request) {
+        if (canCallModel()) {
+            try {
+                String draft = generateContent(
+                        "You are a performance manager coach for Novora HRMS. Draft a balanced appraiser note "
+                                + "(4-7 sentences) covering strengths, one improvement area, and a next-period focus. "
+                                + "Be professional and fair. Do not invent scores not provided. Plain text only. "
+                                + "This is a draft for the manager to edit - not a final rating decision.",
+                        buildPerformancePrompt(request),
+                        900);
+                if (draft != null && !draft.isBlank()) {
+                    return new AiDtos.PerformanceReviewDraftResponse(draft.trim(), "gemini", DISCLAIMER);
+                }
+            } catch (Exception ex) {
+                log.warn("Gemini performance draft fell back to heuristics: {}", ex.getMessage());
+            }
+        }
+        return new AiDtos.PerformanceReviewDraftResponse(heuristicPerformanceDraft(request), "heuristic", DISCLAIMER);
+    }
+
+    public AiDtos.CourseRecommendationResponse courseRecommendations(
+            AiDtos.CourseRecommendationRequest request) {
+        if (canCallModel()) {
+            try {
+                String raw = generateContent(
+                        "You are an L&D advisor for Novora HRMS. Recommend exactly 3 courses from the catalog "
+                                + "when possible. Return plain text:\n"
+                                + "RECOMMENDATIONS:\n- course title - why\n- course title - why\n- course title - why\n"
+                                + "RATIONALE: one short paragraph\n"
+                                + "Prefer titles from the provided catalog. If the catalog is empty, suggest generic topics.",
+                        buildCoursePrompt(request),
+                        900);
+                AiDtos.CourseRecommendationResponse parsed = parseCourseRecommendations(raw);
+                if (parsed != null) {
+                    return parsed;
+                }
+            } catch (Exception ex) {
+                log.warn("Gemini course recommendations fell back to heuristics: {}", ex.getMessage());
+            }
+        }
+        return heuristicCourseRecommendations(request);
+    }
+
+    public AiDtos.EngagementThemeResponse engagementThemes(AiDtos.EngagementThemeRequest request) {
+        if (canCallModel()) {
+            try {
+                String raw = generateContent(
+                        "You are an employee-engagement analyst for Novora HRMS. Aggregate themes only - "
+                                + "do not identify individuals. Return plain text:\n"
+                                + "SUMMARY: one short paragraph\n"
+                                + "THEMES:\n- theme\n- theme\n- theme\n"
+                                + "ACTIONS:\n- suggested HR action\n- suggested HR action\n"
+                                + "Stay constructive and anonymised.",
+                        buildEngagementPrompt(request),
+                        1000);
+                AiDtos.EngagementThemeResponse parsed = parseEngagementThemes(raw);
+                if (parsed != null) {
+                    return parsed;
+                }
+            } catch (Exception ex) {
+                log.warn("Gemini engagement themes fell back to heuristics: {}", ex.getMessage());
+            }
+        }
+        return heuristicEngagementThemes(request);
+    }
+
+    public AiDtos.DisciplinaryLetterResponse disciplinaryLetter(AiDtos.DisciplinaryLetterRequest request) {
+        if (canCallModel()) {
+            try {
+                String raw = generateContent(
+                        "You are an HR employee-relations advisor for Novora HRMS. Draft a formal but fair "
+                                + "warning letter and a short chronology. Return plain text:\n"
+                                + "LETTER:\n(full letter body)\n"
+                                + "CHRONOLOGY:\n- dated bullet\n- dated bullet\n"
+                                + "Do not invent facts not provided. Include a clear statement that the employee "
+                                + "may respond and that this is not automatic termination. Manager must review before issue.",
+                        buildDisciplinaryPrompt(request),
+                        1600);
+                AiDtos.DisciplinaryLetterResponse parsed = parseDisciplinaryLetter(raw);
+                if (parsed != null) {
+                    return parsed;
+                }
+            } catch (Exception ex) {
+                log.warn("Gemini disciplinary letter fell back to heuristics: {}", ex.getMessage());
+            }
+        }
+        return heuristicDisciplinaryLetter(request);
+    }
+
     private boolean canCallModel() {
         return enabled && !apiKey.isBlank();
     }
@@ -91,8 +227,13 @@ public class AiService {
     /**
      * Calls Gemini {@code models/{model}:generateContent} with system instruction + user prompt.
      * Auth: {@code x-goog-api-key} header (Google AI Studio / Gemini API key).
+     * Text drafts use generateContent (not Live/WebSocket — Live is for realtime voice/video).
      */
     private String generateContent(String system, String user) {
+        return generateContent(system, user, 1024);
+    }
+
+    private String generateContent(String system, String user, int maxOutputTokens) {
         Map<String, Object> systemInstruction = Map.of(
                 "parts", List.of(Map.of("text", system))
         );
@@ -102,7 +243,7 @@ public class AiService {
         );
         Map<String, Object> generationConfig = new LinkedHashMap<>();
         generationConfig.put("temperature", 0.4);
-        generationConfig.put("maxOutputTokens", 1024);
+        generationConfig.put("maxOutputTokens", Math.max(256, maxOutputTokens));
 
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("systemInstruction", systemInstruction);
@@ -218,6 +359,190 @@ public class AiService {
         return sb.toString();
     }
 
+    private static String buildJdPrompt(AiDtos.RecruitmentJdDraftRequest request) {
+        StringBuilder sb = new StringBuilder("Draft a job description from this requisition:\n");
+        sb.append("- Title: ").append(nullToDash(request.title())).append('\n');
+        sb.append("- Department: ").append(nullToDash(request.department())).append('\n');
+        sb.append("- Employment type: ").append(nullToDash(request.employmentType())).append('\n');
+        sb.append("- Location: ").append(nullToDash(request.location())).append('\n');
+        sb.append("- Experience: ").append(nullToDash(request.experience())).append('\n');
+        sb.append("- Education: ").append(nullToDash(request.education())).append('\n');
+        sb.append("- Skills: ").append(nullToDash(request.skills())).append('\n');
+        if ((request.salaryMin() != null && !request.salaryMin().isBlank())
+                || (request.salaryMax() != null && !request.salaryMax().isBlank())) {
+            sb.append("- Salary range: ").append(nullToDash(request.salaryMin()))
+                    .append(" - ").append(nullToDash(request.salaryMax())).append('\n');
+        }
+        sb.append("- Existing responsibilities notes:\n")
+                .append(nullToDash(request.existingResponsibilities())).append('\n');
+        sb.append("- Nice-to-have notes:\n").append(nullToDash(request.niceToHave())).append('\n');
+        return sb.toString();
+    }
+
+    private static String buildCandidatePrompt(AiDtos.CandidateSummaryRequest request) {
+        StringBuilder sb = new StringBuilder("Screen this candidate for hiring managers:\n");
+        sb.append("- Name: ").append(nullToDash(request.fullName())).append('\n');
+        sb.append("- Role applied: ").append(nullToDash(request.jobTitle())).append('\n');
+        sb.append("- Stage: ").append(nullToDash(request.stage())).append('\n');
+        sb.append("- Source: ").append(nullToDash(request.source())).append('\n');
+        sb.append("- Rating: ").append(nullToDash(request.rating())).append('\n');
+        sb.append("- Email: ").append(nullToDash(request.email())).append('\n');
+        sb.append("- Phone: ").append(nullToDash(request.phone())).append('\n');
+        sb.append("- Notes / application text:\n").append(nullToDash(request.notes())).append('\n');
+        return sb.toString();
+    }
+
+    private static String heuristicJdDraft(AiDtos.RecruitmentJdDraftRequest request) {
+        String title = nullToDash(request.title());
+        String dept = nullToDash(request.department());
+        String skills = nullToDash(request.skills());
+        String experience = nullToDash(request.experience());
+        String education = nullToDash(request.education());
+        String existing = request.existingResponsibilities() == null || request.existingResponsibilities().isBlank()
+                ? null
+                : request.existingResponsibilities().trim();
+        String nice = request.niceToHave() == null || request.niceToHave().isBlank()
+                ? "Related industry experience and strong communication skills."
+                : request.niceToHave().trim();
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("Summary\n");
+        sb.append("We are hiring a ").append(title).append(" to join the ").append(dept)
+                .append(" team. This ").append(nullToDash(request.employmentType()))
+                .append(" role supports day-to-day delivery and continuous improvement.\n\n");
+        sb.append("Key responsibilities\n");
+        if (existing != null) {
+            for (String line : existing.split("\\R")) {
+                String cleaned = line.trim().replaceFirst("^[-*•]\\s*", "");
+                if (!cleaned.isBlank()) {
+                    sb.append("- ").append(cleaned).append('\n');
+                }
+            }
+        } else {
+            sb.append("- Own core deliverables for the ").append(title).append(" function\n");
+            sb.append("- Partner with stakeholders across ").append(dept).append(" and related teams\n");
+            sb.append("- Maintain accurate records and escalate risks early\n");
+            sb.append("- Contribute to process improvement and knowledge sharing\n");
+        }
+        sb.append("\nRequirements\n");
+        sb.append("- ").append(education).append('\n');
+        sb.append("- ").append(experience).append('\n');
+        if (!"-".equals(skills)) {
+            sb.append("- Working knowledge of: ").append(skills).append('\n');
+        }
+        sb.append("\nNice-to-have\n");
+        for (String line : nice.split("\\R")) {
+            String cleaned = line.trim().replaceFirst("^[-*•]\\s*", "");
+            if (!cleaned.isBlank()) {
+                sb.append("- ").append(cleaned).append('\n');
+            }
+        }
+        return sb.toString().trim();
+    }
+
+    private AiDtos.CandidateSummaryResponse parseCandidateSummary(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        String summary = "";
+        List<String> strengths = new ArrayList<>();
+        List<String> risks = new ArrayList<>();
+        List<String> questions = new ArrayList<>();
+        String section = "";
+        for (String line : raw.split("\\R")) {
+            String trimmed = line.trim();
+            if (trimmed.isBlank()) continue;
+            String upper = trimmed.toUpperCase(Locale.US);
+            if (upper.startsWith("SUMMARY:")) {
+                section = "summary";
+                summary = trimmed.substring(trimmed.indexOf(':') + 1).trim();
+                continue;
+            }
+            if (upper.equals("SUMMARY")) {
+                section = "summary";
+                continue;
+            }
+            if (upper.startsWith("STRENGTHS")) {
+                section = "strengths";
+                continue;
+            }
+            if (upper.startsWith("RISKS") || upper.startsWith("GAPS")) {
+                section = "risks";
+                continue;
+            }
+            if (upper.startsWith("QUESTIONS") || upper.startsWith("INTERVIEW")) {
+                section = "questions";
+                continue;
+            }
+            String cleaned = trimmed.replaceFirst("^[-*•]\\s*", "").replaceFirst("^\\d+[.)]\\s*", "");
+            switch (section) {
+                case "summary" -> {
+                    if (summary.isBlank()) summary = cleaned;
+                    else summary = summary + " " + cleaned;
+                }
+                case "strengths" -> {
+                    if (cleaned.length() > 3) strengths.add(cleaned);
+                }
+                case "risks" -> {
+                    if (cleaned.length() > 3) risks.add(cleaned);
+                }
+                case "questions" -> {
+                    if (cleaned.length() > 3) questions.add(cleaned);
+                }
+                default -> {
+                    // ignore preamble
+                }
+            }
+        }
+        if (summary.isBlank() || strengths.size() + questions.size() < 2) {
+            return null;
+        }
+        return new AiDtos.CandidateSummaryResponse(
+                summary,
+                strengths.isEmpty() ? List.of("Review notes for transferable skills") : strengths.subList(0, Math.min(5, strengths.size())),
+                risks.isEmpty() ? List.of("Confirm experience depth in interview") : risks.subList(0, Math.min(5, risks.size())),
+                questions.isEmpty()
+                        ? List.of("Walk us through a relevant recent project.")
+                        : questions.subList(0, Math.min(5, questions.size())),
+                "gemini",
+                DISCLAIMER);
+    }
+
+    private static AiDtos.CandidateSummaryResponse heuristicCandidateSummary(AiDtos.CandidateSummaryRequest request) {
+        String name = nullToDash(request.fullName());
+        String role = nullToDash(request.jobTitle());
+        String notes = request.notes() == null || request.notes().isBlank()
+                ? "Limited application notes on file."
+                : request.notes().trim();
+        String summary = name + " is at stage " + nullToDash(request.stage())
+                + " for " + role + " (source: " + nullToDash(request.source()) + "). "
+                + "Review the notes below before advancing. " + notes;
+        if (summary.length() > 480) {
+            summary = summary.substring(0, 477) + "...";
+        }
+        List<String> strengths = new ArrayList<>();
+        strengths.add("Active pipeline candidate for " + role);
+        if (request.rating() != null && !request.rating().isBlank() && !"-".equals(request.rating())) {
+            strengths.add("Current rating on file: " + request.rating());
+        }
+        strengths.add("Contact available for follow-up screening");
+
+        List<String> risks = new ArrayList<>();
+        if (request.notes() == null || request.notes().isBlank()) {
+            risks.add("Application notes are empty - request resume details before panel");
+        } else {
+            risks.add("Validate claimed experience against the role requirements");
+        }
+        risks.add("Do not treat this summary as an automated hiring decision");
+
+        List<String> questions = List.of(
+                "Walk us through a recent project most similar to " + role + ".",
+                "What would you prioritise in the first 90 days in this role?",
+                "Describe a stakeholder conflict you resolved and the outcome."
+        );
+        return new AiDtos.CandidateSummaryResponse(summary, strengths, risks, questions, "heuristic", DISCLAIMER);
+    }
+
     private static List<String> parseInsightLines(String raw) {
         List<String> out = new ArrayList<>();
         if (raw == null || raw.isBlank()) return out;
@@ -307,6 +632,285 @@ public class AiService {
         draft.append("I'll update you as soon as I have next steps.\n\n");
         draft.append("Best regards,\nHR Support");
         return draft.toString();
+    }
+
+    private static String buildPerformancePrompt(AiDtos.PerformanceReviewDraftRequest request) {
+        StringBuilder sb = new StringBuilder("Draft an appraiser note for:\n");
+        sb.append("- Employee: ").append(nullToDash(request.employeeName())).append('\n');
+        sb.append("- Review type: ").append(nullToDash(request.reviewType())).append('\n');
+        sb.append("- Period: ").append(nullToDash(request.reviewPeriod())).append('\n');
+        sb.append("- Date: ").append(nullToDash(request.reviewDate())).append('\n');
+        sb.append("- Scores: codeQuality=").append(nullToDash(request.codeQuality()))
+                .append(", problemSolving=").append(nullToDash(request.problemSolving()))
+                .append(", systemDesign=").append(nullToDash(request.systemDesign()))
+                .append(", sprints=").append(nullToDash(request.sprintsCompleted()))
+                .append(", bugsSLA=").append(nullToDash(request.bugsSla()))
+                .append(", attendance=").append(nullToDash(request.attendance())).append('\n');
+        sb.append("- Existing note:\n").append(nullToDash(request.existingNote())).append('\n');
+        return sb.toString();
+    }
+
+    private static String heuristicPerformanceDraft(AiDtos.PerformanceReviewDraftRequest request) {
+        return "During " + nullToDash(request.reviewPeriod()) + ", "
+                + nullToDash(request.employeeName())
+                + " demonstrated solid delivery against the recorded scores for this "
+                + nullToDash(request.reviewType())
+                + ". Strengths appear in consistent execution and collaboration. "
+                + "One focus area for the next period is closing gaps highlighted by the lower score dimensions "
+                + "and agreeing measurable targets with the manager. "
+                + "Please review and personalise this note before sharing with the employee.";
+    }
+
+    private static String buildCoursePrompt(AiDtos.CourseRecommendationRequest request) {
+        StringBuilder sb = new StringBuilder("Recommend learning based on:\n");
+        sb.append("- Department: ").append(nullToDash(request.department())).append('\n');
+        sb.append("- Role / focus: ").append(nullToDash(request.roleOrFocus())).append('\n');
+        sb.append("- Skills gap: ").append(nullToDash(request.skillsGap())).append('\n');
+        sb.append("- Catalog titles:\n");
+        if (request.catalogTitles() != null) {
+            for (String t : request.catalogTitles()) {
+                if (t != null && !t.isBlank()) sb.append("  - ").append(t.trim()).append('\n');
+            }
+        }
+        sb.append("- Categories:\n");
+        if (request.categories() != null) {
+            for (String c : request.categories()) {
+                if (c != null && !c.isBlank()) sb.append("  - ").append(c.trim()).append('\n');
+            }
+        }
+        return sb.toString();
+    }
+
+    private AiDtos.CourseRecommendationResponse parseCourseRecommendations(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        List<String> recs = new ArrayList<>();
+        String rationale = "";
+        String section = "";
+        for (String line : raw.split("\\R")) {
+            String trimmed = line.trim();
+            if (trimmed.isBlank()) continue;
+            String upper = trimmed.toUpperCase(Locale.US);
+            if (upper.startsWith("RECOMMENDATIONS")) {
+                section = "recs";
+                continue;
+            }
+            if (upper.startsWith("RATIONALE")) {
+                section = "rationale";
+                if (trimmed.contains(":")) {
+                    rationale = trimmed.substring(trimmed.indexOf(':') + 1).trim();
+                }
+                continue;
+            }
+            String cleaned = trimmed.replaceFirst("^[-*•]\\s*", "").replaceFirst("^\\d+[.)]\\s*", "");
+            if ("recs".equals(section) && cleaned.length() > 4) {
+                recs.add(cleaned);
+            } else if ("rationale".equals(section)) {
+                rationale = rationale.isBlank() ? cleaned : rationale + " " + cleaned;
+            }
+        }
+        if (recs.isEmpty()) return null;
+        return new AiDtos.CourseRecommendationResponse(
+                recs.subList(0, Math.min(5, recs.size())),
+                rationale.isBlank() ? "Selected from the current catalog for the stated focus." : rationale,
+                "gemini",
+                DISCLAIMER);
+    }
+
+    private static AiDtos.CourseRecommendationResponse heuristicCourseRecommendations(
+            AiDtos.CourseRecommendationRequest request) {
+        List<String> catalog = request.catalogTitles() == null ? List.of() : request.catalogTitles().stream()
+                .filter(t -> t != null && !t.isBlank())
+                .map(String::trim)
+                .toList();
+        List<String> recs = new ArrayList<>();
+        for (String title : catalog) {
+            if (recs.size() >= 3) break;
+            recs.add(title + " - matches current catalog availability");
+        }
+        while (recs.size() < 3) {
+            recs.add("Communication & stakeholder management - foundational soft skill for most roles");
+            if (recs.size() >= 3) break;
+            recs.add("Workplace compliance essentials - reduces operational risk");
+            if (recs.size() >= 3) break;
+            recs.add("Time management & prioritisation - supports delivery consistency");
+        }
+        String focus = nullToDash(request.roleOrFocus());
+        String rationale = "Heuristic picks for " + focus
+                + " in " + nullToDash(request.department())
+                + ". Prefer Gemini recommendations when a key is configured.";
+        return new AiDtos.CourseRecommendationResponse(recs.subList(0, 3), rationale, "heuristic", DISCLAIMER);
+    }
+
+    private static String buildEngagementPrompt(AiDtos.EngagementThemeRequest request) {
+        StringBuilder sb = new StringBuilder("Aggregate themes from anonymous feedback:\n");
+        if (request.comments() != null) {
+            int i = 1;
+            for (AiDtos.EngagementComment c : request.comments()) {
+                if (c == null || c.text() == null || c.text().isBlank()) continue;
+                sb.append(i++).append(". [").append(nullToDash(c.category()))
+                        .append(" / ").append(nullToDash(c.vibe())).append("] ")
+                        .append(c.text().trim()).append('\n');
+                if (i > 40) break;
+            }
+        }
+        if (sb.toString().endsWith(":\n")) {
+            sb.append("(no comments provided)\n");
+        }
+        return sb.toString();
+    }
+
+    private AiDtos.EngagementThemeResponse parseEngagementThemes(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        String summary = "";
+        List<String> themes = new ArrayList<>();
+        List<String> actions = new ArrayList<>();
+        String section = "";
+        for (String line : raw.split("\\R")) {
+            String trimmed = line.trim();
+            if (trimmed.isBlank()) continue;
+            String upper = trimmed.toUpperCase(Locale.US);
+            if (upper.startsWith("SUMMARY")) {
+                section = "summary";
+                if (trimmed.contains(":")) summary = trimmed.substring(trimmed.indexOf(':') + 1).trim();
+                continue;
+            }
+            if (upper.startsWith("THEMES")) {
+                section = "themes";
+                continue;
+            }
+            if (upper.startsWith("ACTIONS")) {
+                section = "actions";
+                continue;
+            }
+            String cleaned = trimmed.replaceFirst("^[-*•]\\s*", "").replaceFirst("^\\d+[.)]\\s*", "");
+            switch (section) {
+                case "summary" -> summary = summary.isBlank() ? cleaned : summary + " " + cleaned;
+                case "themes" -> {
+                    if (cleaned.length() > 3) themes.add(cleaned);
+                }
+                case "actions" -> {
+                    if (cleaned.length() > 3) actions.add(cleaned);
+                }
+                default -> {
+                }
+            }
+        }
+        if (summary.isBlank() && themes.isEmpty()) return null;
+        return new AiDtos.EngagementThemeResponse(
+                themes.isEmpty() ? List.of("General workplace feedback") : themes.subList(0, Math.min(6, themes.size())),
+                summary.isBlank() ? "Aggregate themes generated from recent suggestions." : summary,
+                actions.isEmpty()
+                        ? List.of("Share themes with managers without naming individuals")
+                        : actions.subList(0, Math.min(5, actions.size())),
+                "gemini",
+                DISCLAIMER);
+    }
+
+    private static AiDtos.EngagementThemeResponse heuristicEngagementThemes(
+            AiDtos.EngagementThemeRequest request) {
+        int count = request.comments() == null ? 0 : (int) request.comments().stream()
+                .filter(c -> c != null && c.text() != null && !c.text().isBlank())
+                .count();
+        List<String> themes = new ArrayList<>();
+        if (request.comments() != null) {
+            for (AiDtos.EngagementComment c : request.comments()) {
+                if (c == null || c.category() == null || c.category().isBlank()) continue;
+                String theme = c.category().trim() + " feedback appears repeatedly";
+                if (!themes.contains(theme) && themes.size() < 4) themes.add(theme);
+            }
+        }
+        if (themes.isEmpty()) {
+            themes.add("Workload and prioritisation");
+            themes.add("Communication clarity");
+            themes.add("Recognition and morale");
+        }
+        String summary = count == 0
+                ? "No suggestion text available yet - collect more anonymous feedback before acting."
+                : "Reviewed " + count + " anonymous suggestion(s). Themes below are aggregate only.";
+        List<String> actions = List.of(
+                "Review top themes in the next people-ops standup",
+                "Convert one theme into a tracked action plan owner"
+        );
+        return new AiDtos.EngagementThemeResponse(themes, summary, actions, "heuristic", DISCLAIMER);
+    }
+
+    private static String buildDisciplinaryPrompt(AiDtos.DisciplinaryLetterRequest request) {
+        StringBuilder sb = new StringBuilder("Draft warning materials for:\n");
+        sb.append("- Employee: ").append(nullToDash(request.employeeName())).append('\n');
+        sb.append("- Department: ").append(nullToDash(request.department())).append('\n');
+        sb.append("- Reason: ").append(nullToDash(request.reason())).append('\n');
+        sb.append("- Warning level: ").append(nullToDash(request.warningLevel())).append('\n');
+        sb.append("- Incident date: ").append(nullToDash(request.incidentDate())).append('\n');
+        sb.append("- Location: ").append(nullToDash(request.location())).append('\n');
+        sb.append("- Issued by: ").append(nullToDash(request.issuedBy())).append('\n');
+        sb.append("- Description:\n").append(nullToDash(request.description())).append('\n');
+        sb.append("- Existing expectation notes:\n").append(nullToDash(request.existingExpectation())).append('\n');
+        return sb.toString();
+    }
+
+    private AiDtos.DisciplinaryLetterResponse parseDisciplinaryLetter(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        StringBuilder letter = new StringBuilder();
+        StringBuilder chronology = new StringBuilder();
+        String section = "";
+        for (String line : raw.split("\\R")) {
+            String trimmed = line.trim();
+            String upper = trimmed.toUpperCase(Locale.US);
+            if (upper.equals("LETTER:") || upper.equals("LETTER")) {
+                section = "letter";
+                continue;
+            }
+            if (upper.startsWith("CHRONOLOGY")) {
+                section = "chronology";
+                continue;
+            }
+            if ("letter".equals(section)) {
+                if (!letter.isEmpty()) letter.append('\n');
+                letter.append(line);
+            } else if ("chronology".equals(section)) {
+                if (!chronology.isEmpty()) chronology.append('\n');
+                chronology.append(line);
+            }
+        }
+        String letterText = letter.toString().trim();
+        if (letterText.isBlank()) return null;
+        String chronoText = chronology.toString().trim();
+        if (chronoText.isBlank()) {
+            chronoText = "- Incident recorded pending manager review";
+        }
+        return new AiDtos.DisciplinaryLetterResponse(letterText, chronoText, "gemini", DISCLAIMER);
+    }
+
+    private static AiDtos.DisciplinaryLetterResponse heuristicDisciplinaryLetter(
+            AiDtos.DisciplinaryLetterRequest request) {
+        String name = nullToDash(request.employeeName());
+        String reason = nullToDash(request.reason());
+        String level = nullToDash(request.warningLevel());
+        String date = nullToDash(request.incidentDate());
+        StringBuilder letter = new StringBuilder();
+        letter.append("Dear ").append(name).append(",\n\n");
+        letter.append("This letter records a ").append(level)
+                .append(" regarding ").append(reason);
+        if (!"-".equals(date)) {
+            letter.append(" on ").append(date);
+        }
+        letter.append(".\n\n");
+        letter.append("Incident summary:\n")
+                .append(nullToDash(request.description())).append("\n\n");
+        letter.append("Expected standard going forward:\n");
+        if (request.existingExpectation() != null && !request.existingExpectation().isBlank()) {
+            letter.append(request.existingExpectation().trim()).append("\n\n");
+        } else {
+            letter.append("Maintain professional conduct consistent with company policy and manager guidance.\n\n");
+        }
+        letter.append("You may provide a written response within a reasonable period. ")
+                .append("This draft must be reviewed by HR/management before issue and does not itself ")
+                .append("constitute automatic termination.\n\n");
+        letter.append("Regards,\n").append(nullToDash(request.issuedBy()));
+        String chronology = "- " + date + ": Incident logged (" + reason + ")\n"
+                + "- Draft " + level + " prepared for review\n"
+                + "- Pending manager/HR approval before issue";
+        return new AiDtos.DisciplinaryLetterResponse(letter.toString(), chronology, "heuristic", DISCLAIMER);
     }
 
     private static String nullToDash(String value) {

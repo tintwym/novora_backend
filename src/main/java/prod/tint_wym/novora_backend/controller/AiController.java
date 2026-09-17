@@ -31,4 +31,40 @@ public class AiController {
     public AiDtos.HelpdeskDraftResponse helpdeskDraft(@Valid @RequestBody AiDtos.HelpdeskDraftRequest request) {
         return aiService.helpdeskDraft(request);
     }
+
+    @PostMapping("/api/admin/ai/recruitment-jd-draft")
+    public AiDtos.RecruitmentJdDraftResponse recruitmentJdDraft(
+            @Valid @RequestBody AiDtos.RecruitmentJdDraftRequest request) {
+        return aiService.recruitmentJdDraft(request);
+    }
+
+    @PostMapping("/api/admin/ai/candidate-summary")
+    public AiDtos.CandidateSummaryResponse candidateSummary(
+            @Valid @RequestBody AiDtos.CandidateSummaryRequest request) {
+        return aiService.candidateSummary(request);
+    }
+
+    @PostMapping("/api/admin/ai/performance-review-draft")
+    public AiDtos.PerformanceReviewDraftResponse performanceReviewDraft(
+            @Valid @RequestBody AiDtos.PerformanceReviewDraftRequest request) {
+        return aiService.performanceReviewDraft(request);
+    }
+
+    @PostMapping("/api/admin/ai/course-recommendations")
+    public AiDtos.CourseRecommendationResponse courseRecommendations(
+            @Valid @RequestBody AiDtos.CourseRecommendationRequest request) {
+        return aiService.courseRecommendations(request);
+    }
+
+    @PostMapping("/api/admin/ai/engagement-themes")
+    public AiDtos.EngagementThemeResponse engagementThemes(
+            @Valid @RequestBody AiDtos.EngagementThemeRequest request) {
+        return aiService.engagementThemes(request);
+    }
+
+    @PostMapping("/api/admin/ai/disciplinary-letter")
+    public AiDtos.DisciplinaryLetterResponse disciplinaryLetter(
+            @Valid @RequestBody AiDtos.DisciplinaryLetterRequest request) {
+        return aiService.disciplinaryLetter(request);
+    }
 }
