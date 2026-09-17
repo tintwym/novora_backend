@@ -67,4 +67,27 @@ public class AiController {
             @Valid @RequestBody AiDtos.DisciplinaryLetterRequest request) {
         return aiService.disciplinaryLetter(request);
     }
+
+    @PostMapping("/api/admin/ai/payroll-anomalies")
+    public AiDtos.PayrollAnomalyResponse payrollAnomalies(
+            @RequestBody(required = false) AiDtos.PayrollAnomalyRequest request) {
+        return aiService.payrollAnomalies(
+                request == null
+                        ? new AiDtos.PayrollAnomalyRequest(null, null, null, null, null, null, null, null, null)
+                        : request);
+    }
+
+    @PostMapping("/api/admin/ai/benefits-tip")
+    public AiDtos.BenefitsTipResponse benefitsTip(@Valid @RequestBody AiDtos.BenefitsTipRequest request) {
+        return aiService.benefitsTip(request);
+    }
+
+    @PostMapping("/api/admin/ai/assets-insights")
+    public AiDtos.AssetsInsightResponse assetsInsights(
+            @RequestBody(required = false) AiDtos.AssetsInsightRequest request) {
+        return aiService.assetsInsights(
+                request == null
+                        ? new AiDtos.AssetsInsightRequest(null, null, null, null, null)
+                        : request);
+    }
 }

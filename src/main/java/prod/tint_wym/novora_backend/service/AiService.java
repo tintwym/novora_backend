@@ -220,6 +220,72 @@ public class AiService {
         return heuristicDisciplinaryLetter(request);
     }
 
+    public AiDtos.PayrollAnomalyResponse payrollAnomalies(AiDtos.PayrollAnomalyRequest request) {
+        if (canCallModel()) {
+            try {
+                String raw = generateContent(
+                        "You are a payroll QA assistant for Novora HRMS. Explain possible anomalies only — "
+                                + "never change amounts. Return plain text:\n"
+                                + "SUMMARY:\n(1-2 sentences)\n"
+                                + "FINDINGS:\n- bullet\n- bullet\n"
+                                + "Do not invent employees or figures not provided. Remind that finance must verify before pay.",
+                        buildPayrollPrompt(request),
+                        900);
+                AiDtos.PayrollAnomalyResponse parsed = parsePayrollAnomalies(raw);
+                if (parsed != null) {
+                    return parsed;
+                }
+            } catch (Exception ex) {
+                log.warn("Gemini payroll anomalies fell back to heuristics: {}", ex.getMessage());
+            }
+        }
+        return heuristicPayrollAnomalies(request);
+    }
+
+    public AiDtos.BenefitsTipResponse benefitsTip(AiDtos.BenefitsTipRequest request) {
+        if (canCallModel()) {
+            try {
+                String raw = generateContent(
+                        "You are a benefits enrollment coach for Novora HRMS. Suggest helpful tips only — "
+                                + "never enroll anyone. Return plain text:\n"
+                                + "TIP:\n(short paragraph)\n"
+                                + "SUGGESTIONS:\n- bullet\n- bullet\n"
+                                + "Stay factual from provided plan names; employee decides.",
+                        buildBenefitsPrompt(request),
+                        700);
+                AiDtos.BenefitsTipResponse parsed = parseBenefitsTip(raw);
+                if (parsed != null) {
+                    return parsed;
+                }
+            } catch (Exception ex) {
+                log.warn("Gemini benefits tip fell back to heuristics: {}", ex.getMessage());
+            }
+        }
+        return heuristicBenefitsTip(request);
+    }
+
+    public AiDtos.AssetsInsightResponse assetsInsights(AiDtos.AssetsInsightRequest request) {
+        if (canCallModel()) {
+            try {
+                String raw = generateContent(
+                        "You are an IT asset operations assistant for Novora HRMS. Suggest inventory insights only — "
+                                + "never reassign assets. Return plain text:\n"
+                                + "SUMMARY:\n(1-2 sentences)\n"
+                                + "INSIGHTS:\n- bullet\n- bullet\n"
+                                + "Do not invent serial numbers or custodians not provided.",
+                        buildAssetsPrompt(request),
+                        700);
+                AiDtos.AssetsInsightResponse parsed = parseAssetsInsights(raw);
+                if (parsed != null) {
+                    return parsed;
+                }
+            } catch (Exception ex) {
+                log.warn("Gemini assets insights fell back to heuristics: {}", ex.getMessage());
+            }
+        }
+        return heuristicAssetsInsights(request);
+    }
+
     private boolean canCallModel() {
         return enabled && !apiKey.isBlank();
     }
@@ -913,7 +979,225 @@ public class AiService {
         return new AiDtos.DisciplinaryLetterResponse(letter.toString(), chronology, "heuristic", DISCLAIMER);
     }
 
+    private static String buildPayrollPrompt(AiDtos.PayrollAnomalyRequest request) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Period: ").append(nullToDash(String.valueOf(request.payMonth()))).append('/')
+                .append(nullToDash(String.valueOf(request.payYear()))).append('\n');
+        sb.append("Headcount: ").append(request.headcount() == null ? "-" : request.headcount()).append('\n');
+        sb.append("Total net pay: ").append(nullToDash(request.totalNetPay())).append('\n');
+        sb.append("Draft/Processed/Paid: ")
+                .append(request.draftCount() == null ? "-" : request.draftCount()).append('/')
+                .append(request.processedCount() == null ? "-" : request.processedCount()).append('/')
+                .append(request.paidCount() == null ? "-" : request.paidCount()).append('\n');
+        sb.append("Row count: ").append(request.rowCount() == null ? "-" : request.rowCount()).append('\n');
+        if (request.sampleRows() != null && !request.sampleRows().isEmpty()) {
+            sb.append("Sample rows:\n");
+            for (String row : request.sampleRows()) {
+                if (row != null && !row.isBlank()) {
+                    sb.append("- ").append(row.trim()).append('\n');
+                }
+            }
+        }
+        return sb.toString();
+    }
+
+    private AiDtos.PayrollAnomalyResponse parsePayrollAnomalies(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        String summary = "";
+        List<String> findings = new ArrayList<>();
+        String section = "";
+        for (String line : raw.split("\\R")) {
+            String trimmed = line.trim();
+            String upper = trimmed.toUpperCase(Locale.US);
+            if (upper.startsWith("SUMMARY")) {
+                section = "summary";
+                continue;
+            }
+            if (upper.startsWith("FINDINGS")) {
+                section = "findings";
+                continue;
+            }
+            if (trimmed.isBlank()) continue;
+            if ("summary".equals(section)) {
+                summary = summary.isBlank() ? trimmed : summary + " " + trimmed;
+            } else if ("findings".equals(section)) {
+                findings.add(trimmed.replaceFirst("^[-*•]\\s*", ""));
+            }
+        }
+        if (summary.isBlank() && findings.isEmpty()) return null;
+        if (findings.isEmpty()) findings = List.of("Review draft vs processed counts before disbursement.");
+        if (summary.isBlank()) summary = "Payroll QA suggestions ready for finance review.";
+        return new AiDtos.PayrollAnomalyResponse(findings, summary, "gemini", DISCLAIMER);
+    }
+
+    private static AiDtos.PayrollAnomalyResponse heuristicPayrollAnomalies(AiDtos.PayrollAnomalyRequest request) {
+        List<String> findings = new ArrayList<>();
+        int draft = request.draftCount() == null ? 0 : request.draftCount();
+        int processed = request.processedCount() == null ? 0 : request.processedCount();
+        int paid = request.paidCount() == null ? 0 : request.paidCount();
+        int rows = request.rowCount() == null ? 0 : request.rowCount();
+        int headcount = request.headcount() == null ? 0 : request.headcount();
+        if (draft > 0) {
+            findings.add(draft + " draft row(s) still open — confirm before marking paid.");
+        }
+        if (headcount > 0 && rows > 0 && Math.abs(headcount - rows) > 0) {
+            findings.add("Headcount (" + headcount + ") differs from payroll rows (" + rows + ") — reconcile missing/extra employees.");
+        }
+        if (processed > 0 && paid == 0) {
+            findings.add("Rows are processed but none paid yet — verify bank file / disbursement step.");
+        }
+        if (findings.isEmpty()) {
+            findings.add("No obvious status mismatch from the supplied totals — still spot-check OT and deductions.");
+        }
+        String summary = "Heuristic payroll QA for "
+                + nullToDash(String.valueOf(request.payMonth())) + "/"
+                + nullToDash(String.valueOf(request.payYear()))
+                + ". AI does not change pay amounts.";
+        return new AiDtos.PayrollAnomalyResponse(findings, summary, "heuristic", DISCLAIMER);
+    }
+
+    private static String buildBenefitsPrompt(AiDtos.BenefitsTipRequest request) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Employee: ").append(nullToDash(request.employeeName())).append('\n');
+        sb.append("Department: ").append(nullToDash(request.department())).append('\n');
+        sb.append("Available plans:\n");
+        if (request.availablePlans() != null) {
+            for (String p : request.availablePlans()) {
+                if (p != null && !p.isBlank()) sb.append("- ").append(p.trim()).append('\n');
+            }
+        }
+        sb.append("Already enrolled:\n");
+        if (request.enrolledPlans() != null) {
+            for (String p : request.enrolledPlans()) {
+                if (p != null && !p.isBlank()) sb.append("- ").append(p.trim()).append('\n');
+            }
+        }
+        return sb.toString();
+    }
+
+    private AiDtos.BenefitsTipResponse parseBenefitsTip(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        String tip = "";
+        List<String> suggestions = new ArrayList<>();
+        String section = "";
+        for (String line : raw.split("\\R")) {
+            String trimmed = line.trim();
+            String upper = trimmed.toUpperCase(Locale.US);
+            if (upper.startsWith("TIP")) {
+                section = "tip";
+                continue;
+            }
+            if (upper.startsWith("SUGGESTIONS")) {
+                section = "suggestions";
+                continue;
+            }
+            if (trimmed.isBlank()) continue;
+            if ("tip".equals(section)) {
+                tip = tip.isBlank() ? trimmed : tip + " " + trimmed;
+            } else if ("suggestions".equals(section)) {
+                suggestions.add(trimmed.replaceFirst("^[-*•]\\s*", ""));
+            }
+        }
+        if (tip.isBlank() && suggestions.isEmpty()) return null;
+        if (tip.isBlank()) tip = "Review available plans against current enrollment before confirming.";
+        if (suggestions.isEmpty()) suggestions = List.of("Compare medical vs wellness coverage gaps.");
+        return new AiDtos.BenefitsTipResponse(tip, suggestions, "gemini", DISCLAIMER);
+    }
+
+    private static AiDtos.BenefitsTipResponse heuristicBenefitsTip(AiDtos.BenefitsTipRequest request) {
+        List<String> available = request.availablePlans() == null ? List.of() : request.availablePlans();
+        List<String> enrolled = request.enrolledPlans() == null ? List.of() : request.enrolledPlans();
+        List<String> suggestions = new ArrayList<>();
+        for (String plan : available) {
+            if (plan == null || plan.isBlank()) continue;
+            boolean already = enrolled.stream().anyMatch(e -> e != null && e.equalsIgnoreCase(plan));
+            if (!already) {
+                suggestions.add("Consider reviewing: " + plan.trim());
+            }
+            if (suggestions.size() >= 3) break;
+        }
+        if (suggestions.isEmpty()) {
+            suggestions.add("Enrollment looks complete for listed plans — confirm dependents and coverage dates.");
+        }
+        String tip = "For " + nullToDash(request.employeeName())
+                + ", compare open plans against current enrollments. Suggestions only — employee decides.";
+        return new AiDtos.BenefitsTipResponse(tip, suggestions, "heuristic", DISCLAIMER);
+    }
+
+    private static String buildAssetsPrompt(AiDtos.AssetsInsightRequest request) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Total: ").append(request.totalAssets() == null ? "-" : request.totalAssets()).append('\n');
+        sb.append("Available: ").append(request.availableCount() == null ? "-" : request.availableCount()).append('\n');
+        sb.append("In use: ").append(request.inUseCount() == null ? "-" : request.inUseCount()).append('\n');
+        sb.append("Maintenance: ").append(request.maintenanceCount() == null ? "-" : request.maintenanceCount()).append('\n');
+        if (request.flaggedItems() != null && !request.flaggedItems().isEmpty()) {
+            sb.append("Flagged items:\n");
+            for (String item : request.flaggedItems()) {
+                if (item != null && !item.isBlank()) sb.append("- ").append(item.trim()).append('\n');
+            }
+        }
+        return sb.toString();
+    }
+
+    private AiDtos.AssetsInsightResponse parseAssetsInsights(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        String summary = "";
+        List<String> insights = new ArrayList<>();
+        String section = "";
+        for (String line : raw.split("\\R")) {
+            String trimmed = line.trim();
+            String upper = trimmed.toUpperCase(Locale.US);
+            if (upper.startsWith("SUMMARY")) {
+                section = "summary";
+                continue;
+            }
+            if (upper.startsWith("INSIGHTS")) {
+                section = "insights";
+                continue;
+            }
+            if (trimmed.isBlank()) continue;
+            if ("summary".equals(section)) {
+                summary = summary.isBlank() ? trimmed : summary + " " + trimmed;
+            } else if ("insights".equals(section)) {
+                insights.add(trimmed.replaceFirst("^[-*•]\\s*", ""));
+            }
+        }
+        if (summary.isBlank() && insights.isEmpty()) return null;
+        if (insights.isEmpty()) insights = List.of("Prioritize maintenance queue before new assignments.");
+        if (summary.isBlank()) summary = "Asset inventory insights ready for ops review.";
+        return new AiDtos.AssetsInsightResponse(insights, summary, "gemini", DISCLAIMER);
+    }
+
+    private static AiDtos.AssetsInsightResponse heuristicAssetsInsights(AiDtos.AssetsInsightRequest request) {
+        List<String> insights = new ArrayList<>();
+        int maintenance = request.maintenanceCount() == null ? 0 : request.maintenanceCount();
+        int available = request.availableCount() == null ? 0 : request.availableCount();
+        int inUse = request.inUseCount() == null ? 0 : request.inUseCount();
+        if (maintenance > 0) {
+            insights.add(maintenance + " asset(s) flagged for maintenance — clear workshop queue before reissue.");
+        }
+        if (available == 0 && inUse > 0) {
+            insights.add("No available stock — plan procurement or reclaim unused devices.");
+        }
+        if (available > 0) {
+            insights.add(available + " available unit(s) ready for assignment from warehouse.");
+        }
+        if (request.flaggedItems() != null) {
+            for (String item : request.flaggedItems()) {
+                if (item != null && !item.isBlank()) {
+                    insights.add("Review: " + item.trim());
+                }
+                if (insights.size() >= 4) break;
+            }
+        }
+        if (insights.isEmpty()) {
+            insights.add("Inventory counts look balanced — spot-check overdue checkouts.");
+        }
+        String summary = "Heuristic asset ops tips. AI does not reassign hardware.";
+        return new AiDtos.AssetsInsightResponse(insights, summary, "heuristic", DISCLAIMER);
+    }
+
     private static String nullToDash(String value) {
-        return value == null || value.isBlank() ? "-" : value.trim();
+        return value == null || value.isBlank() || "null".equals(value) ? "-" : value.trim();
     }
 }

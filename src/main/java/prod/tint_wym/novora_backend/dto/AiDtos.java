@@ -155,4 +155,52 @@ public final class AiDtos {
             String source,
             String disclaimer
     ) {}
+
+    public record PayrollAnomalyRequest(
+            Integer payMonth,
+            Integer payYear,
+            Integer headcount,
+            String totalNetPay,
+            Integer draftCount,
+            Integer processedCount,
+            Integer paidCount,
+            Integer rowCount,
+            List<@Size(max = 200) String> sampleRows
+    ) {}
+
+    public record PayrollAnomalyResponse(
+            List<String> findings,
+            String summary,
+            String source,
+            String disclaimer
+    ) {}
+
+    public record BenefitsTipRequest(
+            @Size(max = 120) String employeeName,
+            @Size(max = 120) String department,
+            List<@Size(max = 200) String> availablePlans,
+            List<@Size(max = 200) String> enrolledPlans
+    ) {}
+
+    public record BenefitsTipResponse(
+            String tip,
+            List<String> suggestions,
+            String source,
+            String disclaimer
+    ) {}
+
+    public record AssetsInsightRequest(
+            Integer totalAssets,
+            Integer availableCount,
+            Integer inUseCount,
+            Integer maintenanceCount,
+            List<@Size(max = 200) String> flaggedItems
+    ) {}
+
+    public record AssetsInsightResponse(
+            List<String> insights,
+            String summary,
+            String source,
+            String disclaimer
+    ) {}
 }
