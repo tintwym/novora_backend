@@ -21,4 +21,5 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
     CMD curl -fsS http://127.0.0.1:${SERVER_PORT:-8080}/actuator/health/liveness >/dev/null || exit 1
 # Prefer a larger heap fraction in small containers (override with JAVA_OPTS).
 ENV JAVA_OPTS=""
-ENTRYPOINT ["sh", "-c", "exec java -XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError $JAVA_OPTS -jar /app/app.jar"]
+# Serial GC + C1-only JIT keep startup fast and memory low on Render's 512 MB / 0.1 CPU free tier.
+ENTRYPOINT ["sh", "-c", "exec java -XX:MaxRAMPercentage=70 -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -Xss512k -XX:+ExitOnOutOfMemoryError $JAVA_OPTS -jar /app/app.jar"]
