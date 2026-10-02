@@ -22,6 +22,9 @@ services:
         value: "5"
       - key: JPA_DDL_AUTO
         value: none
+      # Optional: Google AI Studio key (free tier). Without it AI features use non-AI fallbacks.
+      - key: GEMINI_API_KEY
+        sync: false
       - key: APP_OTP_EXPOSE_CODE
         value: "false"
       # Exact CORS origins only (no wildcards with credentials).

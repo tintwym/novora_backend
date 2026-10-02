@@ -197,6 +197,17 @@ public final class AiDtos {
             List<@Size(max = 200) String> flaggedItems
     ) {}
 
+    public record PolicyQaRequest(
+            @NotBlank @Size(max = 500) String question
+    ) {}
+
+    public record PolicyQaResponse(
+            String answer,
+            List<String> sources,
+            String source,
+            String disclaimer
+    ) {}
+
     public record AssetsInsightResponse(
             List<String> insights,
             String summary,
