@@ -736,7 +736,7 @@ public class AiService {
         }
 
         if (insights.isEmpty()) {
-            insights.add("Workforce metrics look steady - scan Hiring Funnel and Needs Attention for the next action.");
+            insights.add("Workforce metrics look steady - check the Absence Queue and Recruitment for the next action.");
             insights.add("Use Punch In/Out on the dashboard to keep today's attendance current.");
             insights.add("Open Reports if you need a deeper export for leadership.");
         }
