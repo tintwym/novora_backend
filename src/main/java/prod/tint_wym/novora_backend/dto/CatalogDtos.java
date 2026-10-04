@@ -2,6 +2,7 @@ package prod.tint_wym.novora_backend.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -115,7 +116,8 @@ public final class CatalogDtos {
             String city,
             String country,
             String phone,
-            String website
+            String website,
+            String currency
     ) {
     }
 
@@ -127,7 +129,8 @@ public final class CatalogDtos {
             @Size(max = 100) String city,
             @Size(max = 100) String country,
             @Size(max = 40) String phone,
-            @Size(max = 255) String website
+            @Size(max = 255) String website,
+            @Pattern(regexp = "^[A-Za-z]{3}$", message = "currency must be a 3-letter ISO 4217 code") String currency
     ) {
     }
 

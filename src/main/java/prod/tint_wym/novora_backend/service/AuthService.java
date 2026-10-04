@@ -476,7 +476,8 @@ public class AuthService {
                 org.getSlug(),
                 org.getPlan().name(),
                 org.getStatus().name(),
-                org.getTrialExpiresAt());
+                org.getTrialExpiresAt(),
+                org.getCurrency());
         String fullName = resolveDisplayName(user.getEmail());
         return new AuthDtos.AuthResponse(
                 null,

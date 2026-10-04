@@ -75,7 +75,8 @@ public final class AuthDtos {
             String slug,
             String plan,
             String status,
-            LocalDateTime trialExpiresAt
+            LocalDateTime trialExpiresAt,
+            String currency
     ) {
     }
 

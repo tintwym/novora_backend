@@ -19,6 +19,7 @@ import prod.tint_wym.novora_backend.entity.Employee;
 import prod.tint_wym.novora_backend.entity.Interview;
 import prod.tint_wym.novora_backend.entity.JobOffer;
 import prod.tint_wym.novora_backend.entity.JobPosting;
+import prod.tint_wym.novora_backend.entity.Organization;
 import prod.tint_wym.novora_backend.entity.Position;
 import prod.tint_wym.novora_backend.repository.AppUserRepository;
 import prod.tint_wym.novora_backend.repository.CandidateRepository;
@@ -27,6 +28,7 @@ import prod.tint_wym.novora_backend.repository.EmployeeRepository;
 import prod.tint_wym.novora_backend.repository.InterviewRepository;
 import prod.tint_wym.novora_backend.repository.JobOfferRepository;
 import prod.tint_wym.novora_backend.repository.JobPostingRepository;
+import prod.tint_wym.novora_backend.repository.OrganizationRepository;
 import prod.tint_wym.novora_backend.repository.PositionRepository;
 import prod.tint_wym.novora_backend.tenancy.TenantContext;
 
@@ -53,6 +55,7 @@ public class RecruitmentService {
     private final InterviewRepository interviewRepository;
     private final JobOfferRepository jobOfferRepository;
     private final EmployeeRepository employeeRepository;
+    private final OrganizationRepository organizationRepository;
 
     public RecruitmentService(
             JobPostingRepository jobPostingRepository,
@@ -62,7 +65,8 @@ public class RecruitmentService {
             AppUserRepository appUserRepository,
             InterviewRepository interviewRepository,
             JobOfferRepository jobOfferRepository,
-            EmployeeRepository employeeRepository) {
+            EmployeeRepository employeeRepository,
+            OrganizationRepository organizationRepository) {
         this.jobPostingRepository = jobPostingRepository;
         this.candidateRepository = candidateRepository;
         this.departmentRepository = departmentRepository;
@@ -71,6 +75,7 @@ public class RecruitmentService {
         this.interviewRepository = interviewRepository;
         this.jobOfferRepository = jobOfferRepository;
         this.employeeRepository = employeeRepository;
+        this.organizationRepository = organizationRepository;
     }
 
     private UUID requireOrganizationId() {
@@ -326,7 +331,7 @@ public class RecruitmentService {
         offer.setOrganizationId(orgId);
         offer.setCandidate(candidate);
         offer.setSalary(request.salary());
-        offer.setCurrency("SGD");
+        offer.setCurrency(organizationRepository.findById(orgId).map(Organization::getCurrency).orElse(Organization.DEFAULT_CURRENCY));
         offer.setAllowance(request.allowance());
         offer.setGrade(blankToNull(request.grade()));
         offer.setProbation(blankToNull(request.probation()));

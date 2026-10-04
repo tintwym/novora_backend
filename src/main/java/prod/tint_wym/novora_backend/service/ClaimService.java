@@ -13,8 +13,10 @@ import org.springframework.web.server.ResponseStatusException;
 import prod.tint_wym.novora_backend.dto.ClaimDtos;
 import prod.tint_wym.novora_backend.entity.Employee;
 import prod.tint_wym.novora_backend.entity.ExpenseClaim;
+import prod.tint_wym.novora_backend.entity.Organization;
 import prod.tint_wym.novora_backend.repository.EmployeeRepository;
 import prod.tint_wym.novora_backend.repository.ExpenseClaimRepository;
+import prod.tint_wym.novora_backend.repository.OrganizationRepository;
 import prod.tint_wym.novora_backend.tenancy.TenantContext;
 
 @Service
@@ -26,14 +28,17 @@ public class ClaimService {
     private final ExpenseClaimRepository claimRepository;
     private final EmployeeRepository employeeRepository;
     private final NotificationService notificationService;
+    private final OrganizationRepository organizationRepository;
 
     public ClaimService(
             ExpenseClaimRepository claimRepository,
             EmployeeRepository employeeRepository,
-            NotificationService notificationService) {
+            NotificationService notificationService,
+            OrganizationRepository organizationRepository) {
         this.claimRepository = claimRepository;
         this.employeeRepository = employeeRepository;
         this.notificationService = notificationService;
+        this.organizationRepository = organizationRepository;
     }
 
     private UUID requireOrganizationId() {
@@ -122,7 +127,7 @@ public class ClaimService {
         claim.setAmount(request.amount());
         claim.setCurrency(
                 request.currency() == null || request.currency().isBlank()
-                        ? "SGD"
+                        ? organizationRepository.findById(orgId).map(Organization::getCurrency).orElse(Organization.DEFAULT_CURRENCY)
                         : request.currency().trim().toUpperCase(Locale.US));
         claim.setVendor(request.vendor() == null || request.vendor().isBlank() ? null : request.vendor().trim());
         claim.setDescription(

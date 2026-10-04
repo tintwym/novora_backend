@@ -27,6 +27,8 @@ import java.util.UUID;
 @Table(name = "organizations")
 public class Organization {
 
+    public static final String DEFAULT_CURRENCY = "SGD";
+
     public enum Plan {
         TRIAL,
         PAID,
@@ -70,6 +72,10 @@ public class Organization {
 
     @Column(length = 255)
     private String website;
+
+    /** ISO 4217 code used to display and default all money amounts for this workspace. */
+    @Column(length = 3)
+    private String currency;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
@@ -141,6 +147,8 @@ public class Organization {
     public void setPhone(String phone) { this.phone = phone; }
     public String getWebsite() { return website; }
     public void setWebsite(String website) { this.website = website; }
+    public String getCurrency() { return currency == null || currency.isBlank() ? DEFAULT_CURRENCY : currency; }
+    public void setCurrency(String currency) { this.currency = currency; }
     public Plan getPlan() { return plan; }
     public void setPlan(Plan plan) { this.plan = plan; }
     public Status getStatus() { return status; }

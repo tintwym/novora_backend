@@ -6,6 +6,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.util.Currency;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -764,6 +765,15 @@ public class CatalogService {
         if (request.website() != null) {
             o.setWebsite(blankToNull(request.website()));
         }
+        if (request.currency() != null && !request.currency().isBlank()) {
+            String code = request.currency().trim().toUpperCase(Locale.US);
+            try {
+                Currency.getInstance(code);
+            } catch (IllegalArgumentException ex) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown currency code: " + code);
+            }
+            o.setCurrency(code);
+        }
         return toOrg(organizationRepository.save(o));
     }
 
@@ -778,7 +788,8 @@ public class CatalogService {
                 o.getCity(),
                 o.getCountry(),
                 o.getPhone(),
-                o.getWebsite());
+                o.getWebsite(),
+                o.getCurrency());
     }
 
     public List<CatalogDtos.BranchResponse> listBranches() {
