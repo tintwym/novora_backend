@@ -332,6 +332,137 @@ public class AiService {
         return heuristicAssetsInsights(request);
     }
 
+    public AiDtos.ClaimsReviewResponse claimsReview(AiDtos.ClaimsReviewRequest request) {
+        if (canCallModel()) {
+            try {
+                String raw = generateContent(
+                        "You are a claims compliance assistant for Novora HRMS. Flag possible policy issues only — "
+                                + "never approve or reject. Return plain text:\n"
+                                + "SUMMARY:\n(1-2 sentences)\n"
+                                + "FINDINGS:\n- bullet\n- bullet\n"
+                                + "Do not invent employees or amounts not provided. HR/finance must verify.",
+                        buildClaimsPrompt(request),
+                        900);
+                AiDtos.ClaimsReviewResponse parsed = parseFindingsBlock(raw, "Claims queue tips ready for review.");
+                if (parsed != null) {
+                    return parsed;
+                }
+            } catch (Exception ex) {
+                log.warn("Gemini claims review fell back to heuristics: {}", ex.getMessage());
+            }
+        }
+        return heuristicClaimsReview(request);
+    }
+
+    public AiDtos.LeaveReviewResponse leaveReview(AiDtos.LeaveReviewRequest request) {
+        if (canCallModel()) {
+            try {
+                String raw = generateContent(
+                        "You are a leave operations assistant for Novora HRMS. Suggest coverage / pattern tips only — "
+                                + "never approve or reject leave. Return plain text:\n"
+                                + "SUMMARY:\n(1-2 sentences)\n"
+                                + "FINDINGS:\n- bullet\n- bullet\n"
+                                + "Do not invent employees or dates not provided.",
+                        buildLeavePrompt(request),
+                        900);
+                AiDtos.ClaimsReviewResponse parsed = parseFindingsBlock(raw, "Leave queue tips ready for review.");
+                if (parsed != null) {
+                    return new AiDtos.LeaveReviewResponse(
+                            parsed.findings(), parsed.summary(), parsed.source(), parsed.disclaimer());
+                }
+            } catch (Exception ex) {
+                log.warn("Gemini leave review fell back to heuristics: {}", ex.getMessage());
+            }
+        }
+        return heuristicLeaveReview(request);
+    }
+
+    public AiDtos.ApprovalNoteResponse approvalNote(AiDtos.ApprovalNoteRequest request) {
+        if (canCallModel()) {
+            try {
+                String draft = generateContent(
+                        "You are an HR approvals assistant for Novora HRMS. Draft a short decision note "
+                                + "(1-3 sentences) the manager can edit. Do not invent policy. "
+                                + "Never decide for the manager — only draft wording. Plain text only.",
+                        buildApprovalNotePrompt(request),
+                        400);
+                if (draft != null && !draft.isBlank()) {
+                    return new AiDtos.ApprovalNoteResponse(draft.trim(), "gemini", DISCLAIMER);
+                }
+            } catch (Exception ex) {
+                log.warn("Gemini approval note fell back to heuristics: {}", ex.getMessage());
+            }
+        }
+        return heuristicApprovalNote(request);
+    }
+
+    public AiDtos.AttendanceReviewResponse attendanceReview(AiDtos.AttendanceReviewRequest request) {
+        if (canCallModel()) {
+            try {
+                String raw = generateContent(
+                        "You are an attendance operations assistant for Novora HRMS. Flag missing punches, "
+                                + "late clusters, and open overnight sessions only — never change punches. "
+                                + "Return plain text:\nSUMMARY:\n(1-2 sentences)\nFINDINGS:\n- bullet\n"
+                                + "Remind that employees can close forgotten punch-outs via self-service.",
+                        buildAttendancePrompt(request),
+                        900);
+                AiDtos.ClaimsReviewResponse parsed =
+                        parseFindingsBlock(raw, "Attendance tips ready for ops review.");
+                if (parsed != null) {
+                    return new AiDtos.AttendanceReviewResponse(
+                            parsed.findings(), parsed.summary(), parsed.source(), parsed.disclaimer());
+                }
+            } catch (Exception ex) {
+                log.warn("Gemini attendance review fell back to heuristics: {}", ex.getMessage());
+            }
+        }
+        return heuristicAttendanceReview(request);
+    }
+
+    public AiDtos.ReportsBriefResponse reportsBrief(AiDtos.ReportsBriefRequest request) {
+        if (canCallModel()) {
+            try {
+                String raw = generateContent(
+                        "You are an HR reporting co-pilot for Novora HRMS. Write a short board briefing from "
+                                + "the counters only. Return plain text:\n"
+                                + "NARRATIVE:\n(2-3 sentences)\n"
+                                + "FOCUS:\n- bullet\n- bullet\n- bullet\n"
+                                + "Do not invent metrics. No markdown.",
+                        buildReportsPrompt(request),
+                        800);
+                AiDtos.ReportsBriefResponse parsed = parseReportsBrief(raw);
+                if (parsed != null) {
+                    return parsed;
+                }
+            } catch (Exception ex) {
+                log.warn("Gemini reports brief fell back to heuristics: {}", ex.getMessage());
+            }
+        }
+        return heuristicReportsBrief(request);
+    }
+
+    public AiDtos.OnboardingAssistResponse onboardingAssist(AiDtos.OnboardingAssistRequest request) {
+        if (canCallModel()) {
+            try {
+                String raw = generateContent(
+                        "You are an onboarding coordinator for Novora HRMS. Suggest a short welcome note and "
+                                + "checklist tasks only — never mark tasks complete. Return plain text:\n"
+                                + "WELCOME:\n(2-4 sentences)\n"
+                                + "TASKS:\n- bullet\n- bullet\n"
+                                + "Do not invent legal/policy requirements not implied by a typical office hire.",
+                        buildOnboardingPrompt(request),
+                        900);
+                AiDtos.OnboardingAssistResponse parsed = parseOnboardingAssist(raw);
+                if (parsed != null) {
+                    return parsed;
+                }
+            } catch (Exception ex) {
+                log.warn("Gemini onboarding assist fell back to heuristics: {}", ex.getMessage());
+            }
+        }
+        return heuristicOnboardingAssist(request);
+    }
+
     private boolean canCallModel() {
         return enabled && !apiKey.isBlank();
     }
@@ -1265,6 +1396,295 @@ public class AiService {
         }
         String summary = "Heuristic asset ops tips. AI does not reassign hardware.";
         return new AiDtos.AssetsInsightResponse(insights, summary, "heuristic", DISCLAIMER);
+    }
+
+    private static String buildClaimsPrompt(AiDtos.ClaimsReviewRequest request) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Pending count: ").append(nz(request.pendingCount())).append('\n');
+        sb.append("Flagged (policy) count: ").append(nz(request.flaggedCount())).append('\n');
+        sb.append("Total pending amount: ").append(nullToDash(request.totalPendingAmount())).append('\n');
+        appendSampleLines(sb, "Sample claims", request.sampleClaims());
+        return sb.toString();
+    }
+
+    private static String buildLeavePrompt(AiDtos.LeaveReviewRequest request) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Pending count: ").append(nz(request.pendingCount())).append('\n');
+        sb.append("Approved this month: ").append(nz(request.approvedThisMonth())).append('\n');
+        appendSampleLines(sb, "Sample requests", request.sampleRequests());
+        return sb.toString();
+    }
+
+    private static String buildApprovalNotePrompt(AiDtos.ApprovalNoteRequest request) {
+        return "Kind: " + nullToDash(request.kind()) + "\n"
+                + "Title: " + nullToDash(request.title()) + "\n"
+                + "Requester: " + nullToDash(request.requestedByName()) + "\n"
+                + "Detail: " + nullToDash(request.detail()) + "\n"
+                + "Amount: " + nullToDash(request.amount()) + " " + nullToDash(request.currency()) + "\n"
+                + "Intended decision (optional): " + nullToDash(request.intendedDecision()) + "\n";
+    }
+
+    private static String buildAttendancePrompt(AiDtos.AttendanceReviewRequest request) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Work date: ").append(nullToDash(request.workDate())).append('\n');
+        sb.append("Present/Absent/Late: ")
+                .append(nz(request.presentCount())).append('/')
+                .append(nz(request.absentCount())).append('/')
+                .append(nz(request.lateCount())).append('\n');
+        sb.append("Open punches (no check-out): ").append(nz(request.openPunchCount())).append('\n');
+        appendSampleLines(sb, "Sample rows", request.sampleRows());
+        return sb.toString();
+    }
+
+    private static String buildReportsPrompt(AiDtos.ReportsBriefRequest request) {
+        return "Employees: " + nz(request.employees()) + "\n"
+                + "Pending leave: " + nz(request.pendingLeave()) + "\n"
+                + "Claims pending: " + nz(request.claimsPending()) + "\n"
+                + "Open jobs: " + nz(request.openJobs()) + "\n"
+                + "Candidates: " + nz(request.candidates()) + "\n"
+                + "Payroll headcount this month: " + nz(request.payrollHeadcountThisMonth()) + "\n"
+                + "Onboarding incomplete: " + nz(request.onboardingIncomplete()) + "\n";
+    }
+
+    private static String buildOnboardingPrompt(AiDtos.OnboardingAssistRequest request) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Employee: ").append(nullToDash(request.employeeName())).append('\n');
+        sb.append("Department: ").append(nullToDash(request.department())).append('\n');
+        sb.append("Role: ").append(nullToDash(request.role())).append('\n');
+        sb.append("Day-one date: ").append(nullToDash(request.dayOneDate())).append('\n');
+        appendSampleLines(sb, "Existing tasks", request.existingTasks());
+        return sb.toString();
+    }
+
+    private static void appendSampleLines(StringBuilder sb, String label, List<String> lines) {
+        sb.append(label).append(":\n");
+        if (lines == null || lines.isEmpty()) {
+            sb.append("- (none)\n");
+            return;
+        }
+        for (String line : lines) {
+            if (line != null && !line.isBlank()) {
+                sb.append("- ").append(line.trim()).append('\n');
+            }
+        }
+    }
+
+    private AiDtos.ClaimsReviewResponse parseFindingsBlock(String raw, String defaultSummary) {
+        if (raw == null || raw.isBlank()) return null;
+        String summary = "";
+        List<String> findings = new ArrayList<>();
+        String section = "";
+        for (String line : raw.split("\\R")) {
+            String trimmed = line.trim();
+            String upper = trimmed.toUpperCase(Locale.US);
+            if (upper.startsWith("SUMMARY")) {
+                section = "summary";
+                continue;
+            }
+            if (upper.startsWith("FINDINGS") || upper.startsWith("FOCUS") || upper.startsWith("INSIGHTS")) {
+                section = "findings";
+                continue;
+            }
+            if (trimmed.isBlank()) continue;
+            if ("summary".equals(section)) {
+                summary = summary.isBlank() ? trimmed : summary + " " + trimmed;
+            } else if ("findings".equals(section)) {
+                findings.add(trimmed.replaceFirst("^[-*•]\\s*", ""));
+            }
+        }
+        if (summary.isBlank() && findings.isEmpty()) return null;
+        if (findings.isEmpty()) findings = List.of("Review the queue manually before acting.");
+        if (summary.isBlank()) summary = defaultSummary;
+        return new AiDtos.ClaimsReviewResponse(findings, summary, "gemini", DISCLAIMER);
+    }
+
+    private AiDtos.ReportsBriefResponse parseReportsBrief(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        String narrative = "";
+        List<String> focus = new ArrayList<>();
+        String section = "";
+        for (String line : raw.split("\\R")) {
+            String trimmed = line.trim();
+            String upper = trimmed.toUpperCase(Locale.US);
+            if (upper.startsWith("NARRATIVE") || upper.startsWith("SUMMARY")) {
+                section = "narrative";
+                continue;
+            }
+            if (upper.startsWith("FOCUS") || upper.startsWith("FINDINGS")) {
+                section = "focus";
+                continue;
+            }
+            if (trimmed.isBlank()) continue;
+            if ("narrative".equals(section)) {
+                narrative = narrative.isBlank() ? trimmed : narrative + " " + trimmed;
+            } else if ("focus".equals(section)) {
+                focus.add(trimmed.replaceFirst("^[-*•]\\s*", ""));
+            }
+        }
+        if (narrative.isBlank() && focus.isEmpty()) return null;
+        if (focus.isEmpty()) {
+            focus = List.of("Clear pending leave and claims before month close.");
+        }
+        if (narrative.isBlank()) narrative = "Report counters loaded — review focus areas below.";
+        return new AiDtos.ReportsBriefResponse(narrative, focus, "gemini", DISCLAIMER);
+    }
+
+    private AiDtos.OnboardingAssistResponse parseOnboardingAssist(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        String welcome = "";
+        List<String> tasks = new ArrayList<>();
+        String section = "";
+        for (String line : raw.split("\\R")) {
+            String trimmed = line.trim();
+            String upper = trimmed.toUpperCase(Locale.US);
+            if (upper.startsWith("WELCOME")) {
+                section = "welcome";
+                continue;
+            }
+            if (upper.startsWith("TASKS")) {
+                section = "tasks";
+                continue;
+            }
+            if (trimmed.isBlank()) continue;
+            if ("welcome".equals(section)) {
+                welcome = welcome.isBlank() ? trimmed : welcome + " " + trimmed;
+            } else if ("tasks".equals(section)) {
+                tasks.add(trimmed.replaceFirst("^[-*•]\\s*", ""));
+            }
+        }
+        if (welcome.isBlank() && tasks.isEmpty()) return null;
+        if (tasks.isEmpty()) {
+            tasks = List.of("Complete HR paperwork", "Collect laptop & access badges", "Read company handbook");
+        }
+        if (welcome.isBlank()) welcome = "Welcome to the team — please complete your day-one checklist.";
+        return new AiDtos.OnboardingAssistResponse(welcome, tasks, "gemini", DISCLAIMER);
+    }
+
+    private static AiDtos.ClaimsReviewResponse heuristicClaimsReview(AiDtos.ClaimsReviewRequest request) {
+        List<String> findings = new ArrayList<>();
+        int pending = nzInt(request.pendingCount());
+        int flagged = nzInt(request.flaggedCount());
+        if (flagged > 0) {
+            findings.add(flagged + " claim(s) already marked over policy limits — verify receipts before approve.");
+        }
+        if (pending >= 5) {
+            findings.add(pending + " pending claims — batch-review by category to catch duplicate vendors.");
+        }
+        if (request.sampleClaims() != null) {
+            for (String row : request.sampleClaims()) {
+                if (row != null && row.toLowerCase(Locale.US).contains("over")) {
+                    findings.add("Sample flagged: " + row.trim());
+                    break;
+                }
+            }
+        }
+        if (findings.isEmpty()) {
+            findings.add("No obvious policy flags from totals — still spot-check high amounts and missing receipts.");
+        }
+        String summary = "Heuristic claims QA for " + pending + " pending item(s). AI does not approve claims.";
+        return new AiDtos.ClaimsReviewResponse(findings, summary, "heuristic", DISCLAIMER);
+    }
+
+    private static AiDtos.LeaveReviewResponse heuristicLeaveReview(AiDtos.LeaveReviewRequest request) {
+        List<String> findings = new ArrayList<>();
+        int pending = nzInt(request.pendingCount());
+        if (pending >= 3) {
+            findings.add(pending + " pending leave requests — check same-day overlap within each department.");
+        }
+        if (nzInt(request.approvedThisMonth()) >= 10) {
+            findings.add("High approved volume this month — watch coverage for critical roles.");
+        }
+        if (findings.isEmpty()) {
+            findings.add("Queue looks light — still confirm balances and blackout dates before approve.");
+        }
+        String summary = "Heuristic leave tips for " + pending + " pending request(s). AI does not decide leave.";
+        return new AiDtos.LeaveReviewResponse(findings, summary, "heuristic", DISCLAIMER);
+    }
+
+    private static AiDtos.ApprovalNoteResponse heuristicApprovalNote(AiDtos.ApprovalNoteRequest request) {
+        String kind = nullToDash(request.kind()).toLowerCase(Locale.US);
+        String who = nullToDash(request.requestedByName());
+        String title = nullToDash(request.title());
+        String decision = request.intendedDecision() == null || request.intendedDecision().isBlank()
+                ? "reviewed"
+                : request.intendedDecision().trim().toLowerCase(Locale.US);
+        String draft = "Regarding " + title + " from " + who + " (" + kind + "): marked as " + decision
+                + " after checking the request details. Please adjust this note before saving.";
+        return new AiDtos.ApprovalNoteResponse(draft, "heuristic", DISCLAIMER);
+    }
+
+    private static AiDtos.AttendanceReviewResponse heuristicAttendanceReview(
+            AiDtos.AttendanceReviewRequest request) {
+        List<String> findings = new ArrayList<>();
+        int open = nzInt(request.openPunchCount());
+        int late = nzInt(request.lateCount());
+        int absent = nzInt(request.absentCount());
+        if (open > 0) {
+            findings.add(open + " open punch(es) with no check-out — ask staff to Close open session or Check in (new day).");
+        }
+        if (late > 0) {
+            findings.add(late + " late arrival(s) on " + nullToDash(request.workDate()) + " — spot-check shift start rules.");
+        }
+        if (absent > 0) {
+            findings.add(absent + " absent — confirm leave or unplanned absence.");
+        }
+        if (findings.isEmpty()) {
+            findings.add("Roll call counts look steady — still verify biometric vs manual punches.");
+        }
+        String summary = "Heuristic attendance tips for " + nullToDash(request.workDate())
+                + ". AI does not change punch times.";
+        return new AiDtos.AttendanceReviewResponse(findings, summary, "heuristic", DISCLAIMER);
+    }
+
+    private static AiDtos.ReportsBriefResponse heuristicReportsBrief(AiDtos.ReportsBriefRequest request) {
+        int leave = nzInt(request.pendingLeave());
+        int claims = nzInt(request.claimsPending());
+        String narrative = "Organisation pulse: " + nz(request.employees()) + " employees, "
+                + leave + " pending leave, " + claims + " claims pending, "
+                + nz(request.payrollHeadcountThisMonth()) + " on this month's payroll.";
+        List<String> focus = new ArrayList<>();
+        if (leave > 0 || claims > 0) {
+            focus.add("Clear pending leave (" + leave + ") and claims (" + claims + ") before month close.");
+        } else {
+            focus.add("Leave and claims queues are clear — keep an eye on next payroll cut-off.");
+        }
+        focus.add("Review open jobs (" + nz(request.openJobs()) + ") and candidates ("
+                + nz(request.candidates()) + ") in Recruitment.");
+        focus.add("Confirm payroll headcount matches the active employee roster.");
+        if (nzInt(request.onboardingIncomplete()) > 0) {
+            focus.add(nz(request.onboardingIncomplete()) + " onboarding item(s) still incomplete.");
+        }
+        return new AiDtos.ReportsBriefResponse(narrative, focus.subList(0, Math.min(4, focus.size())), "heuristic", DISCLAIMER);
+    }
+
+    private static AiDtos.OnboardingAssistResponse heuristicOnboardingAssist(
+            AiDtos.OnboardingAssistRequest request) {
+        String name = nullToDash(request.employeeName());
+        if ("-".equals(name)) name = "the new hire";
+        String welcome = "Welcome " + name + " to "
+                + ("-".equals(nullToDash(request.department())) ? "the team" : request.department())
+                + ". Please complete the day-one checklist and ask HR if anything is unclear.";
+        List<String> tasks = new ArrayList<>();
+        if (request.existingTasks() != null) {
+            for (String t : request.existingTasks()) {
+                if (t != null && !t.isBlank()) tasks.add(t.trim());
+            }
+        }
+        if (tasks.size() < 3) {
+            tasks.add("Sign employment forms and tax declarations");
+            tasks.add("Collect laptop, badge, and system access");
+            tasks.add("Read company handbook and safety briefing");
+            tasks.add("Meet manager and set 30-day goals");
+        }
+        return new AiDtos.OnboardingAssistResponse(welcome, tasks.subList(0, Math.min(6, tasks.size())), "heuristic", DISCLAIMER);
+    }
+
+    private static String nz(Integer value) {
+        return value == null ? "-" : String.valueOf(value);
+    }
+
+    private static int nzInt(Integer value) {
+        return value == null ? 0 : value;
     }
 
     private static String nullToDash(String value) {

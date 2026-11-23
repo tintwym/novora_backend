@@ -16,6 +16,10 @@ public interface AttendanceRepository extends JpaRepository<Attendance, UUID> {
 
     Optional<Attendance> findByEmployee_IdAndWorkDate(UUID employeeId, LocalDate workDate);
 
+    /** Latest open punch (checked in, not yet checked out) — used for forgotten punch-out recovery. */
+    Optional<Attendance> findFirstByEmployee_IdAndCheckInIsNotNullAndCheckOutIsNullOrderByWorkDateDescCheckInDesc(
+            UUID employeeId);
+
     @Query("""
             SELECT a FROM Attendance a JOIN a.employee e
             WHERE e.organizationId = :orgId

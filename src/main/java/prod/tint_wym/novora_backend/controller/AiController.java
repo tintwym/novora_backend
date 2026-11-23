@@ -90,4 +90,47 @@ public class AiController {
                         ? new AiDtos.AssetsInsightRequest(null, null, null, null, null)
                         : request);
     }
+
+    @PostMapping("/api/admin/ai/claims-review")
+    public AiDtos.ClaimsReviewResponse claimsReview(
+            @RequestBody(required = false) AiDtos.ClaimsReviewRequest request) {
+        return aiService.claimsReview(
+                request == null ? new AiDtos.ClaimsReviewRequest(null, null, null, null) : request);
+    }
+
+    @PostMapping("/api/admin/ai/leave-review")
+    public AiDtos.LeaveReviewResponse leaveReview(
+            @RequestBody(required = false) AiDtos.LeaveReviewRequest request) {
+        return aiService.leaveReview(
+                request == null ? new AiDtos.LeaveReviewRequest(null, null, null) : request);
+    }
+
+    @PostMapping("/api/admin/ai/approval-note")
+    public AiDtos.ApprovalNoteResponse approvalNote(@Valid @RequestBody AiDtos.ApprovalNoteRequest request) {
+        return aiService.approvalNote(request);
+    }
+
+    @PostMapping("/api/admin/ai/attendance-review")
+    public AiDtos.AttendanceReviewResponse attendanceReview(
+            @RequestBody(required = false) AiDtos.AttendanceReviewRequest request) {
+        return aiService.attendanceReview(
+                request == null
+                        ? new AiDtos.AttendanceReviewRequest(null, null, null, null, null, null)
+                        : request);
+    }
+
+    @PostMapping("/api/admin/ai/reports-brief")
+    public AiDtos.ReportsBriefResponse reportsBrief(
+            @RequestBody(required = false) AiDtos.ReportsBriefRequest request) {
+        return aiService.reportsBrief(
+                request == null
+                        ? new AiDtos.ReportsBriefRequest(null, null, null, null, null, null, null)
+                        : request);
+    }
+
+    @PostMapping("/api/admin/ai/onboarding-assist")
+    public AiDtos.OnboardingAssistResponse onboardingAssist(
+            @Valid @RequestBody AiDtos.OnboardingAssistRequest request) {
+        return aiService.onboardingAssist(request);
+    }
 }

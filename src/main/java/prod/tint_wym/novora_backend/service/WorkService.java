@@ -10,6 +10,7 @@ import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -576,7 +577,8 @@ public class WorkService {
     }
 
     /**
-     * Mark check-in for today (server local date). Zoho People-style punch: one check-in per calendar day.
+     * Mark check-in for today (Asia/Singapore date). Zoho People-style: one check-in per calendar day.
+     * If a previous day was left open (forgot punch-out), that session is auto-closed first.
      */
     @Transactional
     public WorkDtos.AttendanceLogResponse checkInMyAttendance(String email) {
@@ -585,6 +587,14 @@ public class WorkService {
         // Wall-clock must match ZONE (Asia/Singapore). LocalDateTime.now() without ZONE
         // uses the JVM default (often UTC on cloud hosts) and stores the wrong punch time.
         LocalDateTime now = LocalDateTime.now(ZONE);
+
+        // Forgot punch-out yesterday → close that open session before starting today.
+        findOpenAttendance(e.getId()).ifPresent(open -> {
+            if (!open.getWorkDate().equals(today)) {
+                autoCloseForgottenPunch(open, now);
+            }
+        });
+
         Attendance log = attendanceRepository.findByEmployee_IdAndWorkDate(e.getId(), today).orElseGet(() -> {
             Attendance n = new Attendance();
             n.setEmployee(e);
@@ -593,7 +603,10 @@ public class WorkService {
             n.setOvertimeHours(BigDecimal.ZERO);
             return n;
         });
-        if (log.getCheckIn() != null) {
+        if (log.getCheckIn() != null && log.getCheckOut() == null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Already checked in for today — punch out first");
+        }
+        if (log.getCheckIn() != null && log.getCheckOut() != null) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Already checked in for today");
         }
         log.setCheckIn(now);
@@ -613,25 +626,68 @@ public class WorkService {
     }
 
     /**
-     * Mark check-out for today. Requires check-in first; computes work hours.
+     * Punch out the current open session.
+     * Works for today's check-in and for a previous day left open (forgotten punch-out).
      */
     @Transactional
     public WorkDtos.AttendanceLogResponse checkOutMyAttendance(String email) {
         Employee e = employeeForEmail(email);
         LocalDate today = LocalDate.now(ZONE);
-        Attendance log = attendanceRepository.findByEmployee_IdAndWorkDate(e.getId(), today)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Check in before checking out"));
-        if (log.getCheckIn() == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Check in before checking out");
-        }
-        if (log.getCheckOut() != null) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Already checked out for today");
-        }
         LocalDateTime now = LocalDateTime.now(ZONE);
+
+        Attendance log = attendanceRepository.findByEmployee_IdAndWorkDate(e.getId(), today)
+                .filter(a -> a.getCheckIn() != null && a.getCheckOut() == null)
+                .or(() -> findOpenAttendance(e.getId()))
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "No open punch to check out. Punch in first."));
+
+        if (log.getCheckOut() != null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Already checked out for this session");
+        }
         log.setCheckOut(now);
         recalculateWorkHours(log);
+        if (!log.getWorkDate().equals(today)) {
+            String note = "Closed next day (missed punch-out on " + log.getWorkDate() + ")";
+            log.setNotes(appendNote(log.getNotes(), note));
+        }
         log.setUpdatedAt(now);
         return toAttendance(attendanceRepository.save(log));
+    }
+
+    private Optional<Attendance> findOpenAttendance(UUID employeeId) {
+        return attendanceRepository
+                .findFirstByEmployee_IdAndCheckInIsNotNullAndCheckOutIsNullOrderByWorkDateDescCheckInDesc(employeeId);
+    }
+
+    /**
+     * Close a forgotten open punch from a previous work date at end-of-day (23:59:59 SGT),
+     * or at {@code now} if somehow still the same calendar day.
+     */
+    private void autoCloseForgottenPunch(Attendance open, LocalDateTime now) {
+        LocalDateTime endOfDay = open.getWorkDate().atTime(23, 59, 59);
+        LocalDateTime closeAt = endOfDay.isBefore(now) ? endOfDay : now;
+        if (open.getCheckIn() != null && closeAt.isBefore(open.getCheckIn())) {
+            closeAt = open.getCheckIn();
+        }
+        open.setCheckOut(closeAt);
+        recalculateWorkHours(open);
+        open.setNotes(appendNote(open.getNotes(), "Auto-closed (missed punch-out)"));
+        open.setUpdatedAt(now);
+        attendanceRepository.save(open);
+    }
+
+    private static String appendNote(String existing, String addition) {
+        if (addition == null || addition.isBlank()) {
+            return existing;
+        }
+        if (existing == null || existing.isBlank()) {
+            return addition;
+        }
+        if (existing.contains(addition)) {
+            return existing;
+        }
+        return existing + " · " + addition;
     }
 
     private static String deriveStatusFromCheckInTime(LocalTime time) {

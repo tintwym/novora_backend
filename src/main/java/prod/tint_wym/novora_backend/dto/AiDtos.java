@@ -214,4 +214,101 @@ public final class AiDtos {
             String source,
             String disclaimer
     ) {}
+
+    /** Pending claims queue scan — flags policy / duplicate / odd amount patterns for human review. */
+    public record ClaimsReviewRequest(
+            Integer pendingCount,
+            Integer flaggedCount,
+            String totalPendingAmount,
+            List<@Size(max = 240) String> sampleClaims
+    ) {}
+
+    public record ClaimsReviewResponse(
+            List<String> findings,
+            String summary,
+            String source,
+            String disclaimer
+    ) {}
+
+    /** Pending leave queue scan — coverage / pattern tips for approvers. */
+    public record LeaveReviewRequest(
+            Integer pendingCount,
+            Integer approvedThisMonth,
+            List<@Size(max = 240) String> sampleRequests
+    ) {}
+
+    public record LeaveReviewResponse(
+            List<String> findings,
+            String summary,
+            String source,
+            String disclaimer
+    ) {}
+
+    /** One approval-row note draft (leave / claim / OT) — never auto-decides. */
+    public record ApprovalNoteRequest(
+            @NotBlank @Size(max = 40) String kind,
+            @Size(max = 200) String title,
+            @Size(max = 120) String requestedByName,
+            @Size(max = 500) String detail,
+            @Size(max = 40) String amount,
+            @Size(max = 16) String currency,
+            @Size(max = 20) String intendedDecision
+    ) {}
+
+    public record ApprovalNoteResponse(
+            String draftNote,
+            String source,
+            String disclaimer
+    ) {}
+
+    /** Attendance roll-call / open-punch anomalies. */
+    public record AttendanceReviewRequest(
+            @Size(max = 40) String workDate,
+            Integer presentCount,
+            Integer absentCount,
+            Integer lateCount,
+            Integer openPunchCount,
+            List<@Size(max = 240) String> sampleRows
+    ) {}
+
+    public record AttendanceReviewResponse(
+            List<String> findings,
+            String summary,
+            String source,
+            String disclaimer
+    ) {}
+
+    /** Executive report brief from live counters — replaces static Sparkles bullets. */
+    public record ReportsBriefRequest(
+            Integer employees,
+            Integer pendingLeave,
+            Integer claimsPending,
+            Integer openJobs,
+            Integer candidates,
+            Integer payrollHeadcountThisMonth,
+            Integer onboardingIncomplete
+    ) {}
+
+    public record ReportsBriefResponse(
+            String narrative,
+            List<String> focusAreas,
+            String source,
+            String disclaimer
+    ) {}
+
+    /** New-hire onboarding checklist / welcome assist. */
+    public record OnboardingAssistRequest(
+            @Size(max = 120) String employeeName,
+            @Size(max = 120) String department,
+            @Size(max = 120) String role,
+            List<@Size(max = 200) String> existingTasks,
+            @Size(max = 40) String dayOneDate
+    ) {}
+
+    public record OnboardingAssistResponse(
+            String welcomeNote,
+            List<String> suggestedTasks,
+            String source,
+            String disclaimer
+    ) {}
 }
