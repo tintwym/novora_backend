@@ -4,6 +4,7 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
@@ -48,7 +49,11 @@ public final class HrDtos {
             @NotNull UUID positionId,
             @Size(max = 20) String employeeCode,
             LocalDate hireDate,
-            @Size(max = 20) String status
+            @Size(max = 20) String status,
+            BigDecimal basicSalary,
+            BigDecimal monthlyAllowance,
+            BigDecimal monthlyDeduction,
+            BigDecimal taxRatePercent
     ) {
     }
 
@@ -70,7 +75,11 @@ public final class HrDtos {
             String employmentType,
             String city,
             String country,
-            String managerName
+            String managerName,
+            BigDecimal basicSalary,
+            BigDecimal monthlyAllowance,
+            BigDecimal monthlyDeduction,
+            BigDecimal taxRatePercent
     ) {
     }
 }

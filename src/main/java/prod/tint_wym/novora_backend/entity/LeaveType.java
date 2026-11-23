@@ -69,6 +69,13 @@ public class LeaveType {
     @Column(name = "is_active")
     private boolean active = true;
 
+    @Column(name = "requires_attachment", nullable = false)
+    private boolean requiresAttachment;
+
+    /** ANNUAL | MONTHLY_PRORATE */
+    @Column(name = "accrual_method", nullable = false, length = 30)
+    private String accrualMethod = "ANNUAL";
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -190,6 +197,22 @@ public class LeaveType {
 
     public void setActive(boolean active) {
         this.active = active;
+    }
+
+    public boolean isRequiresAttachment() {
+        return requiresAttachment;
+    }
+
+    public void setRequiresAttachment(boolean requiresAttachment) {
+        this.requiresAttachment = requiresAttachment;
+    }
+
+    public String getAccrualMethod() {
+        return accrualMethod;
+    }
+
+    public void setAccrualMethod(String accrualMethod) {
+        this.accrualMethod = accrualMethod;
     }
 
     public LocalDateTime getCreatedAt() {

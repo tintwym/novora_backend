@@ -12,6 +12,7 @@ import jakarta.persistence.OneToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -111,6 +112,19 @@ public class Employee {
 
     @Column(name = "tax_id", length = 50)
     private String taxId;
+
+    @Column(name = "basic_salary", precision = 15, scale = 2)
+    private BigDecimal basicSalary;
+
+    @Column(name = "monthly_allowance", precision = 15, scale = 2)
+    private BigDecimal monthlyAllowance;
+
+    @Column(name = "monthly_deduction", precision = 15, scale = 2)
+    private BigDecimal monthlyDeduction;
+
+    /** Percent value, e.g. 8.0000 for 8%. */
+    @Column(name = "tax_rate_percent", precision = 7, scale = 4)
+    private BigDecimal taxRatePercent;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;
@@ -348,6 +362,38 @@ public class Employee {
 
     public void setTaxId(String taxId) {
         this.taxId = taxId;
+    }
+
+    public BigDecimal getBasicSalary() {
+        return basicSalary;
+    }
+
+    public void setBasicSalary(BigDecimal basicSalary) {
+        this.basicSalary = basicSalary;
+    }
+
+    public BigDecimal getMonthlyAllowance() {
+        return monthlyAllowance;
+    }
+
+    public void setMonthlyAllowance(BigDecimal monthlyAllowance) {
+        this.monthlyAllowance = monthlyAllowance;
+    }
+
+    public BigDecimal getMonthlyDeduction() {
+        return monthlyDeduction;
+    }
+
+    public void setMonthlyDeduction(BigDecimal monthlyDeduction) {
+        this.monthlyDeduction = monthlyDeduction;
+    }
+
+    public BigDecimal getTaxRatePercent() {
+        return taxRatePercent;
+    }
+
+    public void setTaxRatePercent(BigDecimal taxRatePercent) {
+        this.taxRatePercent = taxRatePercent;
     }
 
     public LocalDateTime getCreatedAt() {

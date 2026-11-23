@@ -47,6 +47,7 @@ public class EmployeeService {
     private final LeaveTypeRepository leaveTypeRepository;
     private final LeaveBalanceRepository leaveBalanceRepository;
     private final PasswordEncoder passwordEncoder;
+    private final CrmIntegrationService crmIntegrationService;
 
     public EmployeeService(
             EmployeeRepository employeeRepository,
@@ -55,7 +56,8 @@ public class EmployeeService {
             AppUserRepository appUserRepository,
             LeaveTypeRepository leaveTypeRepository,
             LeaveBalanceRepository leaveBalanceRepository,
-            PasswordEncoder passwordEncoder
+            PasswordEncoder passwordEncoder,
+            CrmIntegrationService crmIntegrationService
     ) {
         this.employeeRepository = employeeRepository;
         this.departmentRepository = departmentRepository;
@@ -64,6 +66,7 @@ public class EmployeeService {
         this.leaveTypeRepository = leaveTypeRepository;
         this.leaveBalanceRepository = leaveBalanceRepository;
         this.passwordEncoder = passwordEncoder;
+        this.crmIntegrationService = crmIntegrationService;
     }
 
     private UUID requireOrganizationId() {
@@ -174,6 +177,7 @@ public class EmployeeService {
                     HttpStatus.CONFLICT, "Employee record conflicts with an existing one", ex);
         }
         seedLeaveBalances(saved, now);
+        crmIntegrationService.recordEmployeeChange(saved);
         return toResponse(saved);
     }
 
@@ -263,6 +267,19 @@ public class EmployeeService {
             }
             employee.setStatus(status);
         }
+        // Compensation is optional on update — only overwrite when the client sends a value.
+        if (request.basicSalary() != null) {
+            employee.setBasicSalary(request.basicSalary());
+        }
+        if (request.monthlyAllowance() != null) {
+            employee.setMonthlyAllowance(request.monthlyAllowance());
+        }
+        if (request.monthlyDeduction() != null) {
+            employee.setMonthlyDeduction(request.monthlyDeduction());
+        }
+        if (request.taxRatePercent() != null) {
+            employee.setTaxRatePercent(request.taxRatePercent());
+        }
         employee.setUpdatedAt(LocalDateTime.now());
 
         Employee saved;
@@ -274,6 +291,7 @@ public class EmployeeService {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT, "Employee record conflicts with an existing one", ex);
         }
+        crmIntegrationService.recordEmployeeChange(saved);
         return toResponse(saved);
     }
 
@@ -343,6 +361,7 @@ public class EmployeeService {
         employee.setEndDate(LocalDate.now());
         employee.setUpdatedAt(now);
         employeeRepository.save(employee);
+        crmIntegrationService.recordEmployeeChange(employee);
 
         if (user != null) {
             if (user.isActive()) {
@@ -437,7 +456,11 @@ public class EmployeeService {
                 employee.getEmploymentType(),
                 employee.getCity(),
                 employee.getCountry(),
-                managerName
+                managerName,
+                employee.getBasicSalary(),
+                employee.getMonthlyAllowance(),
+                employee.getMonthlyDeduction(),
+                employee.getTaxRatePercent()
         );
     }
 

@@ -44,6 +44,9 @@ public class LeavePolicyService {
     }
 
     private LeavePolicyDtos.LeaveTypeResponse toLeaveType(LeaveType lt) {
+        String accrual = lt.getAccrualMethod() == null || lt.getAccrualMethod().isBlank()
+                ? "ANNUAL"
+                : lt.getAccrualMethod().toUpperCase(Locale.US);
         return new LeavePolicyDtos.LeaveTypeResponse(
                 lt.getId(),
                 lt.getName(),
@@ -54,7 +57,21 @@ public class LeavePolicyService {
                 lt.getMaxCarryDays(),
                 lt.getDescription(),
                 lt.isActive(),
+                lt.isRequiresAttachment(),
+                accrual,
                 toInstant(lt.getCreatedAt()));
+    }
+
+    private static String normalizeAccrual(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return "ANNUAL";
+        }
+        String value = raw.trim().toUpperCase(Locale.US);
+        if (!value.equals("ANNUAL") && !value.equals("MONTHLY_PRORATE")) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "accrualMethod must be ANNUAL or MONTHLY_PRORATE");
+        }
+        return value;
     }
 
     private LeavePolicyDtos.HolidayResponse toHoliday(Holiday h) {
@@ -90,6 +107,8 @@ public class LeavePolicyService {
         lt.setMaxCarryDays(request.maxCarryDays() != null ? request.maxCarryDays() : 0);
         lt.setDescription(blankToNull(request.description()));
         lt.setActive(request.active() == null || request.active());
+        lt.setRequiresAttachment(Boolean.TRUE.equals(request.requiresAttachment()));
+        lt.setAccrualMethod(normalizeAccrual(request.accrualMethod()));
         lt.setSortOrder(0);
         lt.setCreatedAt(now);
         return toLeaveType(leaveTypeRepository.save(lt));
@@ -119,6 +138,12 @@ public class LeavePolicyService {
         lt.setDescription(blankToNull(request.description()));
         if (request.active() != null) {
             lt.setActive(request.active());
+        }
+        if (request.requiresAttachment() != null) {
+            lt.setRequiresAttachment(request.requiresAttachment());
+        }
+        if (request.accrualMethod() != null) {
+            lt.setAccrualMethod(normalizeAccrual(request.accrualMethod()));
         }
         return toLeaveType(leaveTypeRepository.save(lt));
     }

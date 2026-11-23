@@ -1,8 +1,11 @@
 package prod.tint_wym.novora_backend.service;
 
+import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -11,6 +14,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 import prod.tint_wym.novora_backend.dto.ClaimDtos;
+import prod.tint_wym.novora_backend.entity.ClaimCategoryLimit;
+import prod.tint_wym.novora_backend.entity.ClaimPolicy;
 import prod.tint_wym.novora_backend.entity.Employee;
 import prod.tint_wym.novora_backend.entity.ExpenseClaim;
 import prod.tint_wym.novora_backend.entity.Organization;
@@ -23,22 +28,26 @@ import prod.tint_wym.novora_backend.tenancy.TenantContext;
 @Transactional(readOnly = true)
 public class ClaimService {
 
-    private static final ZoneId ZONE = ZoneId.systemDefault();
+    private static final ZoneId ZONE = ZoneId.of("Asia/Singapore");
+    private static final int MAX_RECEIPT_CHARS = 8_000_000; // ~6MB base64
 
     private final ExpenseClaimRepository claimRepository;
     private final EmployeeRepository employeeRepository;
     private final NotificationService notificationService;
     private final OrganizationRepository organizationRepository;
+    private final ClaimPolicyService claimPolicyService;
 
     public ClaimService(
             ExpenseClaimRepository claimRepository,
             EmployeeRepository employeeRepository,
             NotificationService notificationService,
-            OrganizationRepository organizationRepository) {
+            OrganizationRepository organizationRepository,
+            ClaimPolicyService claimPolicyService) {
         this.claimRepository = claimRepository;
         this.employeeRepository = employeeRepository;
         this.notificationService = notificationService;
         this.organizationRepository = organizationRepository;
+        this.claimPolicyService = claimPolicyService;
     }
 
     private UUID requireOrganizationId() {
@@ -70,6 +79,9 @@ public class ClaimService {
             decidedBy = name(c.getDecidedBy());
         }
         String dept = emp.getDepartment() != null ? emp.getDepartment().getName() : null;
+        boolean hasReceipt =
+                (c.getReceiptContentBase64() != null && !c.getReceiptContentBase64().isBlank())
+                        || (c.getReceiptUrl() != null && !c.getReceiptUrl().isBlank());
         return new ClaimDtos.ClaimResponse(
                 c.getId(),
                 emp.getId(),
@@ -85,7 +97,10 @@ public class ClaimService {
                 c.getDecisionNote(),
                 decidedBy,
                 toInstant(c.getDecidedAt()),
-                toInstant(c.getCreatedAt()));
+                toInstant(c.getCreatedAt()),
+                hasReceipt,
+                c.getReceiptName(),
+                c.getReceiptUrl());
     }
 
     public List<ClaimDtos.ClaimResponse> myClaims(String email) {
@@ -107,6 +122,82 @@ public class ClaimService {
                 .toList();
     }
 
+    private void enforcePolicy(UUID orgId, Employee employee, ClaimDtos.CreateClaimRequest request, boolean hasReceipt) {
+        ClaimPolicy policy = claimPolicyService.requirePolicy(orgId);
+        LocalDate today = LocalDate.now(ZONE);
+        LocalDate claimDate = request.claimDate();
+
+        if (policy.isBlockFutureDates() && claimDate.isAfter(today)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Claim date cannot be in the future");
+        }
+        if (policy.isEnforceClaimAge()) {
+            long ageDays = ChronoUnit.DAYS.between(claimDate, today);
+            if (ageDays > policy.getMaxClaimAgeDays()) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Claim date is older than " + policy.getMaxClaimAgeDays() + " days");
+            }
+        }
+
+        ClaimCategoryLimit categoryLimit = claimPolicyService.limitsFor(orgId).stream()
+                .filter(l -> l.getCategory().equalsIgnoreCase(request.category().trim()))
+                .findFirst()
+                .orElse(null);
+
+        String receiptMode = categoryLimit != null
+                ? categoryLimit.getReceiptRequired().toUpperCase(Locale.US)
+                : "THRESHOLD";
+        BigDecimal threshold = policy.getReceiptRequiredAbove() == null
+                ? new BigDecimal("50.00")
+                : policy.getReceiptRequiredAbove();
+        boolean receiptRequired = false;
+        if (policy.isEnforceReceipt()) {
+            if ("ALWAYS".equals(receiptMode)) {
+                receiptRequired = true;
+            } else if ("THRESHOLD".equals(receiptMode)
+                    && request.amount().compareTo(threshold) > 0) {
+                receiptRequired = true;
+            }
+        }
+        if (receiptRequired && !hasReceipt) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Receipt attachment is required for this claim");
+        }
+
+        if (categoryLimit != null) {
+            if (categoryLimit.getDailyLimit() != null) {
+                BigDecimal used = java.util.Optional.ofNullable(
+                                claimRepository.sumForEmployeeCategoryOnDate(
+                                        employee.getId(), request.category().trim(), claimDate))
+                        .orElse(BigDecimal.ZERO);
+                if (used.add(request.amount()).compareTo(categoryLimit.getDailyLimit()) > 0) {
+                    throw new ResponseStatusException(
+                            HttpStatus.CONFLICT,
+                            "Daily limit exceeded for " + categoryLimit.getCategory()
+                                    + " (" + categoryLimit.getDailyLimit() + ")");
+                }
+            }
+            if (categoryLimit.getMonthlyLimit() != null) {
+                LocalDate monthStart = claimDate.withDayOfMonth(1);
+                LocalDate monthEnd = claimDate.withDayOfMonth(claimDate.lengthOfMonth());
+                BigDecimal used = java.util.Optional.ofNullable(
+                                claimRepository.sumForEmployeeCategoryInRange(
+                                        employee.getId(),
+                                        request.category().trim(),
+                                        monthStart,
+                                        monthEnd))
+                        .orElse(BigDecimal.ZERO);
+                if (used.add(request.amount()).compareTo(categoryLimit.getMonthlyLimit()) > 0) {
+                    throw new ResponseStatusException(
+                            HttpStatus.CONFLICT,
+                            "Monthly limit exceeded for " + categoryLimit.getCategory()
+                                    + " (" + categoryLimit.getMonthlyLimit() + ")");
+                }
+            }
+        }
+    }
+
     @Transactional
     public ClaimDtos.ClaimResponse createMyClaim(String email, ClaimDtos.CreateClaimRequest request) {
         UUID orgId = requireOrganizationId();
@@ -118,6 +209,26 @@ public class ClaimService {
         } else {
             e = employeeForEmail(email);
         }
+
+        String receiptContent =
+                request.receiptContentBase64() == null || request.receiptContentBase64().isBlank()
+                        ? null
+                        : request.receiptContentBase64().trim();
+        if (receiptContent != null && receiptContent.length() > MAX_RECEIPT_CHARS) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Receipt file is too large");
+        }
+        String receiptUrl =
+                request.receiptUrl() == null || request.receiptUrl().isBlank()
+                        ? null
+                        : request.receiptUrl().trim();
+        String receiptName =
+                request.receiptName() == null || request.receiptName().isBlank()
+                        ? null
+                        : request.receiptName().trim();
+        boolean hasReceipt = receiptContent != null || receiptUrl != null;
+
+        enforcePolicy(orgId, e, request, hasReceipt);
+
         LocalDateTime now = LocalDateTime.now();
         ExpenseClaim claim = new ExpenseClaim();
         claim.setOrganizationId(orgId);
@@ -134,10 +245,18 @@ public class ClaimService {
                 request.description() == null || request.description().isBlank()
                         ? null
                         : request.description().trim());
+        claim.setReceiptName(receiptName);
+        claim.setReceiptContentBase64(receiptContent);
+        claim.setReceiptUrl(receiptUrl);
         claim.setStatus("pending");
         claim.setCreatedAt(now);
         claim.setUpdatedAt(now);
-        return toResponse(claimRepository.save(claim));
+        ExpenseClaim saved = claimRepository.save(claim);
+        if (receiptContent != null && receiptUrl == null) {
+            saved.setReceiptUrl("novora://claims/" + saved.getId() + "/receipt");
+            saved = claimRepository.save(saved);
+        }
+        return toResponse(saved);
     }
 
     @Transactional
@@ -154,6 +273,9 @@ public class ClaimService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "decision must be APPROVE or REJECT");
         }
         Employee admin = employeeForEmail(adminEmail);
+        if (admin.getId().equals(claim.getEmployee().getId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You cannot approve or reject your own claim");
+        }
         claim.setStatus(decision.equals("APPROVE") ? "approved" : "rejected");
         claim.setDecisionNote(request.note());
         claim.setDecidedBy(admin);

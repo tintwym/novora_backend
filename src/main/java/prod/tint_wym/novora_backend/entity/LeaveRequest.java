@@ -45,6 +45,12 @@ public class LeaveRequest {
     @Column(name = "attachment_url", columnDefinition = "text")
     private String attachmentUrl;
 
+    @Column(name = "attachment_name", length = 200)
+    private String attachmentName;
+
+    @Column(name = "attachment_content_base64", columnDefinition = "text")
+    private String attachmentContentBase64;
+
     @Column(length = 20)
     private String status = "pending";
 
@@ -126,6 +132,22 @@ public class LeaveRequest {
 
     public void setAttachmentUrl(String attachmentUrl) {
         this.attachmentUrl = attachmentUrl;
+    }
+
+    public String getAttachmentName() {
+        return attachmentName;
+    }
+
+    public void setAttachmentName(String attachmentName) {
+        this.attachmentName = attachmentName;
+    }
+
+    public String getAttachmentContentBase64() {
+        return attachmentContentBase64;
+    }
+
+    public void setAttachmentContentBase64(String attachmentContentBase64) {
+        this.attachmentContentBase64 = attachmentContentBase64;
     }
 
     public String getStatus() {

@@ -24,4 +24,18 @@ public interface OvertimeRecordRepository extends JpaRepository<OvertimeRecord, 
             @Param("from") LocalDate from,
             @Param("to") LocalDate to,
             @Param("status") String status);
+
+    @Query("""
+            SELECT o FROM OvertimeRecord o
+            WHERE o.employee.id = :employeeId
+              AND o.workDate >= :from
+              AND o.workDate <= :to
+              AND LOWER(o.status) = 'approved'
+            """)
+    List<OvertimeRecord> findApprovedForEmployeeInRange(
+            @Param("employeeId") UUID employeeId,
+            @Param("from") LocalDate from,
+            @Param("to") LocalDate to);
+
+    List<OvertimeRecord> findAllByStatusIgnoreCaseOrderByCreatedAtDesc(String status);
 }

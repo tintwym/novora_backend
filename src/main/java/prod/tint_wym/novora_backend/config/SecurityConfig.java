@@ -25,6 +25,7 @@ import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.security.web.util.matcher.RequestMatcher;
 import java.util.List;
 import org.springframework.http.HttpStatus;
+import prod.tint_wym.novora_backend.controller.CrmIntegrationApiController;
 import prod.tint_wym.novora_backend.repository.AppUserRepository;
 import prod.tint_wym.novora_backend.repository.OrganizationRepository;
 import prod.tint_wym.novora_backend.firebase.FirebaseAuthenticationFilter;
@@ -160,7 +161,8 @@ public class SecurityConfig {
                         // "Authorization: Bearer …" must NOT bypass CSRF on cookie sessions
                         // (especially when Firebase auth is disabled).
                         .ignoringRequestMatchers(req ->
-                                firebaseEnabled && hasNonEmptyBearerToken(req)))
+                                (firebaseEnabled && hasNonEmptyBearerToken(req))
+                                        || isSignedIntegrationRequest(req)))
                 .cors(Customizer.withDefaults())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
                 .authorizeHttpRequests(auth -> auth
@@ -175,6 +177,9 @@ public class SecurityConfig {
                         }).permitAll()
                         .requestMatchers("/auth/**").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
+                        // No user session: CrmIntegrationApiController verifies an HMAC signature
+                        // on every request instead.
+                        .requestMatchers(SecurityConfig::isSignedIntegrationRequest).permitAll()
                         .anyRequest().authenticated()
                 )
                 // Default entry point for stateful HTTP sessions is 403 Forbidden, which conflates
@@ -201,6 +206,11 @@ public class SecurityConfig {
                 filter -> http.addFilterBefore(filter, AuthorizationFilter.class));
 
         return http.build();
+    }
+
+    private static boolean isSignedIntegrationRequest(jakarta.servlet.http.HttpServletRequest req) {
+        String uri = req.getRequestURI();
+        return uri != null && uri.startsWith(CrmIntegrationApiController.BASE_PATH + "/");
     }
 
     private static boolean hasNonEmptyBearerToken(jakarta.servlet.http.HttpServletRequest req) {

@@ -27,7 +27,10 @@ public final class WorkDtos {
             String decisionNote,
             String decidedBy,
             Instant decidedAt,
-            Instant createdAt
+            Instant createdAt,
+            boolean hasAttachment,
+            String attachmentName,
+            String attachmentUrl
     ) {
     }
 
@@ -35,7 +38,10 @@ public final class WorkDtos {
             @NotBlank @Size(max = 80) String leaveType,
             @NotNull LocalDate startDate,
             @NotNull LocalDate endDate,
-            @Size(max = 500) String reason
+            @Size(max = 500) String reason,
+            @Size(max = 200) String attachmentName,
+            String attachmentContentBase64,
+            @Size(max = 500) String attachmentUrl
     ) {
     }
 
@@ -130,11 +136,15 @@ public final class WorkDtos {
             String status,
             UUID requestedByEmployeeId,
             String requestedByName,
+            String title,
+            String detail,
+            BigDecimal amount,
+            String currency,
             Instant createdAt
     ) {
     }
 
-    public record ApprovalsResponse(List<ApprovalTaskResponse> tasks) {
+    public record ApprovalsResponse(List<ApprovalTaskResponse> tasks, int totalPending) {
     }
 
     // Feeds

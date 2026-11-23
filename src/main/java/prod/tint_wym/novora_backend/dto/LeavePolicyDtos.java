@@ -21,6 +21,8 @@ public final class LeavePolicyDtos {
             int maxCarryDays,
             String description,
             boolean active,
+            boolean requiresAttachment,
+            String accrualMethod,
             Instant createdAt
     ) {
     }
@@ -33,7 +35,9 @@ public final class LeavePolicyDtos {
             Boolean carryForward,
             Integer maxCarryDays,
             @Size(max = 2000) String description,
-            Boolean active
+            Boolean active,
+            Boolean requiresAttachment,
+            @Size(max = 30) String accrualMethod
     ) {
     }
 
@@ -45,7 +49,9 @@ public final class LeavePolicyDtos {
             Boolean carryForward,
             Integer maxCarryDays,
             @Size(max = 2000) String description,
-            Boolean active
+            Boolean active,
+            Boolean requiresAttachment,
+            @Size(max = 30) String accrualMethod
     ) {
     }
 

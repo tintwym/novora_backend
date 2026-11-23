@@ -49,6 +49,15 @@ public class ExpenseClaim {
     @Column(columnDefinition = "text")
     private String description;
 
+    @Column(name = "receipt_name", length = 200)
+    private String receiptName;
+
+    @Column(name = "receipt_content_base64", columnDefinition = "text")
+    private String receiptContentBase64;
+
+    @Column(name = "receipt_url", columnDefinition = "text")
+    private String receiptUrl;
+
     @Column(nullable = false, length = 20)
     private String status = "pending";
 
@@ -138,6 +147,30 @@ public class ExpenseClaim {
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    public String getReceiptName() {
+        return receiptName;
+    }
+
+    public void setReceiptName(String receiptName) {
+        this.receiptName = receiptName;
+    }
+
+    public String getReceiptContentBase64() {
+        return receiptContentBase64;
+    }
+
+    public void setReceiptContentBase64(String receiptContentBase64) {
+        this.receiptContentBase64 = receiptContentBase64;
+    }
+
+    public String getReceiptUrl() {
+        return receiptUrl;
+    }
+
+    public void setReceiptUrl(String receiptUrl) {
+        this.receiptUrl = receiptUrl;
     }
 
     public String getStatus() {

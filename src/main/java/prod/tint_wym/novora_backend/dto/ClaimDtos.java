@@ -28,7 +28,10 @@ public final class ClaimDtos {
             String decisionNote,
             String decidedBy,
             Instant decidedAt,
-            Instant createdAt
+            Instant createdAt,
+            boolean hasReceipt,
+            String receiptName,
+            String receiptUrl
     ) {
     }
 
@@ -39,7 +42,10 @@ public final class ClaimDtos {
             @Size(max = 3) String currency,
             @Size(max = 200) String vendor,
             @Size(max = 1000) String description,
-            UUID employeeId
+            UUID employeeId,
+            @Size(max = 200) String receiptName,
+            String receiptContentBase64,
+            @Size(max = 500) String receiptUrl
     ) {
     }
 

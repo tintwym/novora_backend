@@ -27,6 +27,7 @@ import prod.tint_wym.novora_backend.entity.LeaveBalance;
 import prod.tint_wym.novora_backend.entity.LeaveRequest;
 import prod.tint_wym.novora_backend.entity.LeaveType;
 import prod.tint_wym.novora_backend.entity.OnboardingTask;
+import prod.tint_wym.novora_backend.entity.OvertimeRecord;
 import prod.tint_wym.novora_backend.entity.TimeLog;
 import prod.tint_wym.novora_backend.dto.WorkDtos;
 import prod.tint_wym.novora_backend.repository.AnnouncementRepository;
@@ -39,6 +40,7 @@ import prod.tint_wym.novora_backend.repository.LeaveBalanceRepository;
 import prod.tint_wym.novora_backend.repository.LeaveRequestRepository;
 import prod.tint_wym.novora_backend.repository.LeaveTypeRepository;
 import prod.tint_wym.novora_backend.repository.OnboardingTaskRepository;
+import prod.tint_wym.novora_backend.repository.OvertimeRecordRepository;
 import prod.tint_wym.novora_backend.repository.TimeLogRepository;
 import prod.tint_wym.novora_backend.tenancy.TenantContext;
 
@@ -76,6 +78,7 @@ public class WorkService {
     private final TimeLogRepository timeLogRepository;
     private final OnboardingTaskRepository onboardingTaskRepository;
     private final ExpenseClaimRepository expenseClaimRepository;
+    private final OvertimeRecordRepository overtimeRecordRepository;
     private final NotificationService notificationService;
     private final MyProfileService myProfileService;
 
@@ -91,6 +94,7 @@ public class WorkService {
             TimeLogRepository timeLogRepository,
             OnboardingTaskRepository onboardingTaskRepository,
             ExpenseClaimRepository expenseClaimRepository,
+            OvertimeRecordRepository overtimeRecordRepository,
             NotificationService notificationService,
             MyProfileService myProfileService
     ) {
@@ -105,6 +109,7 @@ public class WorkService {
         this.timeLogRepository = timeLogRepository;
         this.onboardingTaskRepository = onboardingTaskRepository;
         this.expenseClaimRepository = expenseClaimRepository;
+        this.overtimeRecordRepository = overtimeRecordRepository;
         this.notificationService = notificationService;
         this.myProfileService = myProfileService;
     }
@@ -153,6 +158,11 @@ public class WorkService {
                 balances = new java.util.ArrayList<>(balances);
                 balances.add(seeded);
             }
+        } else {
+            // Refresh entitled days for monthly accrual types as the calendar advances.
+            for (LeaveBalance balance : balances) {
+                refreshAccruedTotal(balance, e);
+            }
         }
         return balances.stream()
                 .map(b -> new WorkDtos.LeaveBalanceResponse(
@@ -191,6 +201,24 @@ public class WorkService {
         int year = request.startDate().getYear();
         LeaveBalance balance = requireBalanceWithAvailability(e, lt, year, totalDays);
 
+        String attachmentContent =
+                request.attachmentContentBase64() == null || request.attachmentContentBase64().isBlank()
+                        ? null
+                        : request.attachmentContentBase64().trim();
+        String attachmentUrl =
+                request.attachmentUrl() == null || request.attachmentUrl().isBlank()
+                        ? null
+                        : request.attachmentUrl().trim();
+        String attachmentName =
+                request.attachmentName() == null || request.attachmentName().isBlank()
+                        ? null
+                        : request.attachmentName().trim();
+        boolean hasAttachment = attachmentContent != null || attachmentUrl != null;
+        if (lt.isRequiresAttachment() && !hasAttachment) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "Attachment is required for leave type " + lt.getName());
+        }
+
         LocalDateTime now = LocalDateTime.now();
         LeaveRequest lr = new LeaveRequest();
         lr.setEmployee(e);
@@ -199,10 +227,17 @@ public class WorkService {
         lr.setEndDate(request.endDate());
         lr.setTotalDays(totalDays);
         lr.setReason(request.reason() == null ? null : request.reason().trim());
+        lr.setAttachmentName(attachmentName);
+        lr.setAttachmentContentBase64(attachmentContent);
+        lr.setAttachmentUrl(attachmentUrl);
         lr.setStatus("pending");
         lr.setCreatedAt(now);
         lr.setUpdatedAt(now);
         LeaveRequest saved = leaveRequestRepository.save(lr);
+        if (attachmentContent != null && attachmentUrl == null) {
+            saved.setAttachmentUrl("novora://leave/" + saved.getId() + "/attachment");
+            saved = leaveRequestRepository.save(saved);
+        }
 
         balance.setPendingDays(nz(balance.getPendingDays()).add(totalDays));
         recomputeRemaining(balance);
@@ -305,13 +340,58 @@ public class WorkService {
         balance.setEmployee(employee);
         balance.setLeaveType(leaveType);
         balance.setBalanceYear(year);
-        BigDecimal total = BigDecimal.valueOf(leaveType.getDaysAllowed());
+        BigDecimal total = entitledDays(employee, leaveType, year);
         balance.setTotalDays(total);
         balance.setUsedDays(BigDecimal.ZERO);
         balance.setPendingDays(BigDecimal.ZERO);
         balance.setRemainingDays(total);
         balance.setUpdatedAt(LocalDateTime.now());
         return leaveBalanceRepository.save(balance);
+    }
+
+    private void refreshAccruedTotal(LeaveBalance balance, Employee employee) {
+        LeaveType leaveType = balance.getLeaveType();
+        if (leaveType == null || !"MONTHLY_PRORATE".equalsIgnoreCase(leaveType.getAccrualMethod())) {
+            return;
+        }
+        BigDecimal entitled = entitledDays(employee, leaveType, balance.getBalanceYear());
+        if (nz(balance.getTotalDays()).compareTo(entitled) == 0) {
+            return;
+        }
+        balance.setTotalDays(entitled);
+        recomputeRemaining(balance);
+        balance.setUpdatedAt(LocalDateTime.now());
+        leaveBalanceRepository.save(balance);
+    }
+
+    /**
+     * ANNUAL: full annual entitlement. MONTHLY_PRORATE: daysAllowed × eligibleMonths / 12,
+     * where eligible months start from hire month (or Jan 1 of the balance year).
+     */
+    static BigDecimal entitledDays(Employee employee, LeaveType leaveType, int year) {
+        BigDecimal annual = BigDecimal.valueOf(leaveType.getDaysAllowed());
+        if (!"MONTHLY_PRORATE".equalsIgnoreCase(leaveType.getAccrualMethod())) {
+            return annual;
+        }
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Singapore"));
+        int asOfMonth = (today.getYear() == year) ? today.getMonthValue() : (today.getYear() > year ? 12 : 0);
+        if (asOfMonth <= 0) {
+            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        }
+        LocalDate hire = employee.getHireDate();
+        int startMonth = 1;
+        if (hire != null) {
+            if (hire.getYear() > year) {
+                return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+            }
+            if (hire.getYear() == year) {
+                startMonth = hire.getMonthValue();
+            }
+        }
+        int eligibleMonths = Math.max(0, asOfMonth - startMonth + 1);
+        return annual
+                .multiply(BigDecimal.valueOf(eligibleMonths))
+                .divide(BigDecimal.valueOf(12), 2, RoundingMode.HALF_UP);
     }
 
     private void releasePendingDays(LeaveRequest lr, LocalDateTime now) {
@@ -377,7 +457,12 @@ public class WorkService {
         String decidedBy = null;
         if (lr.getApprovedBy() != null && lr.getApprovedBy().getAppUser() != null) {
             decidedBy = lr.getApprovedBy().getAppUser().getEmail();
+        } else if (lr.getApprovedBy() != null) {
+            decidedBy = name(lr.getApprovedBy());
         }
+        boolean hasAttachment =
+                (lr.getAttachmentContentBase64() != null && !lr.getAttachmentContentBase64().isBlank())
+                        || (lr.getAttachmentUrl() != null && !lr.getAttachmentUrl().isBlank());
         return new WorkDtos.LeaveRequestResponse(
                 lr.getId(),
                 employee.getId(),
@@ -390,7 +475,10 @@ public class WorkService {
                 lr.getRejectionNote(),
                 decidedBy,
                 toInstant(lr.getApprovedAt()),
-                toInstant(lr.getCreatedAt())
+                toInstant(lr.getCreatedAt()),
+                hasAttachment,
+                lr.getAttachmentName(),
+                lr.getAttachmentUrl()
         );
     }
 
@@ -696,6 +784,7 @@ public class WorkService {
         for (LeaveRequest lr :
                 leaveRequestRepository.findAllByStatusAndEmployee_OrganizationIdOrderByCreatedAtDesc("pending", orgId)) {
             Employee emp = lr.getEmployee();
+            String typeName = lr.getLeaveType() != null ? lr.getLeaveType().getName() : "Leave";
             tasks.add(new WorkDtos.ApprovalTaskResponse(
                     lr.getId(),
                     "LEAVE",
@@ -703,6 +792,11 @@ public class WorkService {
                     "PENDING",
                     emp.getId(),
                     name(emp),
+                    typeName + " leave",
+                    lr.getStartDate() + " → " + lr.getEndDate()
+                            + (lr.getTotalDays() != null ? " (" + lr.getTotalDays() + "d)" : ""),
+                    null,
+                    null,
                     toInstant(lr.getCreatedAt())));
         }
         for (ExpenseClaim claim : expenseClaimRepository.findAllByStatusIgnoreCaseOrderByCreatedAtDesc("pending")) {
@@ -714,9 +808,41 @@ public class WorkService {
                     "PENDING",
                     emp.getId(),
                     name(emp),
+                    claim.getCategory() + " claim",
+                    claim.getVendor() != null ? claim.getVendor() : claim.getClaimDate().toString(),
+                    claim.getAmount(),
+                    claim.getCurrency(),
                     toInstant(claim.getCreatedAt())));
         }
-        return new WorkDtos.ApprovalsResponse(tasks);
+        for (OvertimeRecord ot :
+                overtimeRecordRepository.findAllByStatusIgnoreCaseOrderByCreatedAtDesc("pending")) {
+            if (ot.getOrganizationId() != null && !ot.getOrganizationId().equals(orgId)) {
+                continue;
+            }
+            Employee emp = ot.getEmployee();
+            tasks.add(new WorkDtos.ApprovalTaskResponse(
+                    ot.getId(),
+                    "OVERTIME",
+                    ot.getId(),
+                    "PENDING",
+                    emp.getId(),
+                    name(emp),
+                    "Overtime request",
+                    ot.getWorkDate() + " · " + ot.getHours() + "h"
+                            + (ot.getReason() != null && !ot.getReason().isBlank() ? " — " + ot.getReason() : ""),
+                    ot.getHours(),
+                    "HRS",
+                    toInstant(ot.getCreatedAt())));
+        }
+        tasks.sort((a, b) -> {
+            Instant ca = a.createdAt();
+            Instant cb = b.createdAt();
+            if (ca == null && cb == null) return 0;
+            if (ca == null) return 1;
+            if (cb == null) return -1;
+            return cb.compareTo(ca);
+        });
+        return new WorkDtos.ApprovalsResponse(tasks, tasks.size());
     }
 
     public List<WorkDtos.FeedPostResponse> listFeed() {

@@ -37,6 +37,7 @@ public class MyProfileService {
     private final ProfileOtpService profileOtpService;
     private final EmployeeFamilyRepository employeeFamilyRepository;
     private final EmployeeEducationRepository employeeEducationRepository;
+    private final CrmIntegrationService crmIntegrationService;
     private final MyProfileService self;
 
     public MyProfileService(
@@ -47,8 +48,10 @@ public class MyProfileService {
             ProfileOtpService profileOtpService,
             EmployeeFamilyRepository employeeFamilyRepository,
             EmployeeEducationRepository employeeEducationRepository,
+            CrmIntegrationService crmIntegrationService,
             @Lazy MyProfileService self
     ) {
+        this.crmIntegrationService = crmIntegrationService;
         this.employeeRepository = employeeRepository;
         this.appUserRepository = appUserRepository;
         this.departmentRepository = departmentRepository;
@@ -161,6 +164,7 @@ public class MyProfileService {
         }
 
         employeeRepository.save(employee);
+        crmIntegrationService.recordEmployeeChange(employee);
         return self.getMyProfile(email);
     }
 
