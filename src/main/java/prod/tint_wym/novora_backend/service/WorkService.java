@@ -502,7 +502,7 @@ public class WorkService {
                     Attendance n = new Attendance();
                     n.setEmployee(e);
                     n.setWorkDate(request.workDate());
-                    LocalDateTime now = LocalDateTime.now();
+                    LocalDateTime now = LocalDateTime.now(ZONE);
                     n.setCreatedAt(now);
                     return n;
                 });
@@ -511,7 +511,7 @@ public class WorkService {
         log.setCheckOut(combine(request.workDate(), request.checkOutTime()));
         recalculateWorkHours(log);
         log.setNotes(request.notes() == null ? null : request.notes().trim());
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(ZONE);
         log.setUpdatedAt(now);
         if (log.getCreatedAt() == null) {
             log.setCreatedAt(now);
@@ -542,7 +542,7 @@ public class WorkService {
             Attendance n = new Attendance();
             n.setEmployee(e);
             n.setWorkDate(workDate);
-            LocalDateTime now = LocalDateTime.now();
+            LocalDateTime now = LocalDateTime.now(ZONE);
             n.setCreatedAt(now);
             n.setOvertimeHours(BigDecimal.ZERO);
             return n;
@@ -567,7 +567,7 @@ public class WorkService {
         if (request.reason() != null && !request.reason().isBlank()) {
             log.setNotes(request.reason().trim());
         }
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(ZONE);
         log.setUpdatedAt(now);
         if (log.getCreatedAt() == null) {
             log.setCreatedAt(now);
@@ -582,7 +582,9 @@ public class WorkService {
     public WorkDtos.AttendanceLogResponse checkInMyAttendance(String email) {
         Employee e = employeeForEmail(email);
         LocalDate today = LocalDate.now(ZONE);
-        LocalDateTime now = LocalDateTime.now();
+        // Wall-clock must match ZONE (Asia/Singapore). LocalDateTime.now() without ZONE
+        // uses the JVM default (often UTC on cloud hosts) and stores the wrong punch time.
+        LocalDateTime now = LocalDateTime.now(ZONE);
         Attendance log = attendanceRepository.findByEmployee_IdAndWorkDate(e.getId(), today).orElseGet(() -> {
             Attendance n = new Attendance();
             n.setEmployee(e);
@@ -625,7 +627,7 @@ public class WorkService {
         if (log.getCheckOut() != null) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Already checked out for today");
         }
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(ZONE);
         log.setCheckOut(now);
         recalculateWorkHours(log);
         log.setUpdatedAt(now);
